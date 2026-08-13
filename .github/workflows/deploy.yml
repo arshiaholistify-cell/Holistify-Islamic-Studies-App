@@ -25,10 +25,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Diagnose secrets (no values written)
+        run: |
+          {
+            echo "URL var: ${#ISLAMIC_STUDIES_SUPABASE_URL} chars, has_pipe=$(printf '%s' "$ISLAMIC_STUDIES_SUPABASE_URL" | grep -c '|' || true), lines=$(printf '%s' "$ISLAMIC_STUDIES_SUPABASE_URL" | wc -l)"
+            echo "KEY var: ${#ISLAMIC_STUDIES_SUPABASE_ANON_KEY} chars, has_pipe=$(printf '%s' "$ISLAMIC_STUDIES_SUPABASE_ANON_KEY" | grep -c '|' || true), lines=$(printf '%s' "$ISLAMIC_STUDIES_SUPABASE_ANON_KEY" | wc -l)"
+            echo "index.html exists: $(test -f index.html && echo yes || echo no)"
+          } > _diagnostic.txt
+          cat _diagnostic.txt
+        env:
+          ISLAMIC_STUDIES_SUPABASE_URL: ${{ secrets.ISLAMIC_STUDIES_SUPABASE_URL }}
+          ISLAMIC_STUDIES_SUPABASE_ANON_KEY: ${{ secrets.ISLAMIC_STUDIES_SUPABASE_ANON_KEY }}
+
       - name: Inject environment variables
         run: |
-          sed -i "s|__IS_SUPABASE_URL__|${{ secrets.ISLAMIC_STUDIES_SUPABASE_URL }}|g" index.html
-          sed -i "s|__IS_SUPABASE_ANON_KEY__|${{ secrets.ISLAMIC_STUDIES_SUPABASE_ANON_KEY }}|g" index.html
+          set +e
+          sed -i "s|__IS_SUPABASE_URL__|${ISLAMIC_STUDIES_SUPABASE_URL}|g" index.html
+          echo "sed URL exit: $?" >> _diagnostic.txt
+          sed -i "s|__IS_SUPABASE_ANON_KEY__|${ISLAMIC_STUDIES_SUPABASE_ANON_KEY}|g" index.html
+          echo "sed KEY exit: $?" >> _diagnostic.txt
+          cat _diagnostic.txt
+          exit 0
+        env:
+          ISLAMIC_STUDIES_SUPABASE_URL: ${{ secrets.ISLAMIC_STUDIES_SUPABASE_URL }}
+          ISLAMIC_STUDIES_SUPABASE_ANON_KEY: ${{ secrets.ISLAMIC_STUDIES_SUPABASE_ANON_KEY }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
