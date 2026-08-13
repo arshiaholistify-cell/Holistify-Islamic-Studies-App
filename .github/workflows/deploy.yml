@@ -25,27 +25,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Diagnose secrets (no values written)
-        run: |
-          {
-            echo "URL var: ${#ISLAMIC_STUDIES_SUPABASE_URL} chars, has_pipe=$(printf '%s' "$ISLAMIC_STUDIES_SUPABASE_URL" | grep -c '|' || true), lines=$(printf '%s' "$ISLAMIC_STUDIES_SUPABASE_URL" | wc -l)"
-            echo "KEY var: ${#ISLAMIC_STUDIES_SUPABASE_ANON_KEY} chars, has_pipe=$(printf '%s' "$ISLAMIC_STUDIES_SUPABASE_ANON_KEY" | grep -c '|' || true), lines=$(printf '%s' "$ISLAMIC_STUDIES_SUPABASE_ANON_KEY" | wc -l)"
-            echo "index.html exists: $(test -f index.html && echo yes || echo no)"
-          } > _diagnostic.txt
-          cat _diagnostic.txt
-        env:
-          ISLAMIC_STUDIES_SUPABASE_URL: ${{ secrets.ISLAMIC_STUDIES_SUPABASE_URL }}
-          ISLAMIC_STUDIES_SUPABASE_ANON_KEY: ${{ secrets.ISLAMIC_STUDIES_SUPABASE_ANON_KEY }}
-
       - name: Inject environment variables
         run: |
-          set +e
-          sed -i "s|__IS_SUPABASE_URL__|${ISLAMIC_STUDIES_SUPABASE_URL}|g" index.html
-          echo "sed URL exit: $?" >> _diagnostic.txt
-          sed -i "s|__IS_SUPABASE_ANON_KEY__|${ISLAMIC_STUDIES_SUPABASE_ANON_KEY}|g" index.html
-          echo "sed KEY exit: $?" >> _diagnostic.txt
-          cat _diagnostic.txt
-          exit 0
+          set -e
+          # Strip any stray whitespace/newlines that copy-pasted secrets can pick up
+          CLEAN_URL="$(printf '%s' "$ISLAMIC_STUDIES_SUPABASE_URL" | tr -d '\n\r' | xargs)"
+          CLEAN_KEY="$(printf '%s' "$ISLAMIC_STUDIES_SUPABASE_ANON_KEY" | tr -d '\n\r' | xargs)"
+          sed -i "s|__IS_SUPABASE_URL__|${CLEAN_URL}|g" index.html
+          sed -i "s|__IS_SUPABASE_ANON_KEY__|${CLEAN_KEY}|g" index.html
         env:
           ISLAMIC_STUDIES_SUPABASE_URL: ${{ secrets.ISLAMIC_STUDIES_SUPABASE_URL }}
           ISLAMIC_STUDIES_SUPABASE_ANON_KEY: ${{ secrets.ISLAMIC_STUDIES_SUPABASE_ANON_KEY }}
