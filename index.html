@@ -702,7 +702,7 @@ function hideAuthMsgs(){
 async function handleSignup(){
   hideAuthMsgs();
   var client = sbClient();
-  if (!client) return showAuthErr('Supabase is not configured yet — use "Configure Supabase connection" below.');
+  if (!client) return showAuthErr('Supabase is not configured on this deployment. Please contact the site administrator.');
   var name = document.getElementById('suName').value.trim();
   var email = document.getElementById('suEmail').value.trim();
   var password = document.getElementById('suPassword').value;
@@ -735,7 +735,7 @@ async function handleSignup(){
 async function handleLogin(){
   hideAuthMsgs();
   var client = sbClient();
-  if (!client) return showAuthErr('Supabase is not configured yet — use "Configure Supabase connection" below.');
+  if (!client) return showAuthErr('Supabase is not configured on this deployment. Please contact the site administrator.');
   var email = document.getElementById('loginEmail').value.trim();
   var password = document.getElementById('loginPassword').value;
   if (!email || !password) return showAuthErr('Please enter your email and password.');
