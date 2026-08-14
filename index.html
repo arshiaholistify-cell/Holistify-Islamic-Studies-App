@@ -424,12 +424,6 @@ textarea{resize:vertical}
       </div>
 
       <div class="card">
-        <div class="card-t"><div class="ci">🔑</div>Anthropic API Key</div>
-        <input id="apiKey" type="password" placeholder="sk-ant-...">
-        <div class="hint" style="margin-top:6px">Stored only in this browser (localStorage). Used to call Claude via the local proxy.</div>
-      </div>
-
-      <div class="card">
         <div class="card-t"><div class="ci">📖</div>Source</div>
         <div class="fg">
           <div class="fg1"><label>Curriculum</label><select id="genCurriculum" onchange="onGenCurriculumChange()"><option value="">— Custom topic (no curriculum) —</option></select></div>
@@ -635,34 +629,20 @@ function toast(msg, type){
 function fmtDate(d){ return d ? new Date(d).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}) : ''; }
 function uuidLike(){ return 'k' + Math.random().toString(36).slice(2,10); }
 
-function getApiKey(){ return document.getElementById('apiKey').value.trim() || localStorage.getItem('is_anthropic_key') || ''; }
-document.addEventListener('DOMContentLoaded', function(){
-  var saved = localStorage.getItem('is_anthropic_key');
-  if (saved) document.getElementById('apiKey').value = saved;
-  document.getElementById('apiKey').addEventListener('change', function(){
-    if (this.value.trim()) localStorage.setItem('is_anthropic_key', this.value.trim());
-  });
-});
-
 async function callClaude(system, user, maxTokens){
-  var apiKey = getApiKey();
-  if (!apiKey) throw new Error('Please enter your Anthropic API key first.');
-  var res = await fetch('/api/anthropic', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      _apiKey: apiKey,
-      model: 'claude-sonnet-4-6',
-      max_tokens: maxTokens || 4096,
-      system: system,
-      messages: [{ role: 'user', content: user }]
-    })
+  var client = sbClient();
+  if (!client) throw new Error('Not configured.');
+  var { data, error } = await client.functions.invoke('is-generate', {
+    body: { system: system, messages: [{ role: 'user', content: user }], max_tokens: maxTokens || 4096 }
   });
-  if (!res.ok) {
-    var err = await res.json().catch(function(){ return {}; });
-    throw new Error((err && err.error && err.error.message) || ('API error ' + res.status));
+  if (error) {
+    var msg = error.message || 'AI request failed.';
+    if (error.context && typeof error.context.json === 'function') {
+      try { var body = await error.context.json(); if (body && body.error) msg = body.error; } catch(e) {}
+    }
+    throw new Error(msg);
   }
-  var data = await res.json();
+  if (data && data.error) throw new Error(data.error);
   return (data.content && data.content[0] && data.content[0].text) || '';
 }
 function extractJsonArray(text){
@@ -1048,8 +1028,6 @@ async function extractChapters(){
   var content = pasted;
   chFiles.forEach(function(f){ content += '\n\n=== FILE: ' + f.name + ' ===\n' + f.text; });
   if (!content.trim()) return alert('Please paste text or upload a file first.');
-  var apiKey = getApiKey();
-  if (!apiKey) return alert('Please enter your Anthropic API key on the Generate Lesson Plan page first — it is shared across the app.');
 
   document.getElementById('chExtractSpin').classList.add('show');
   document.getElementById('chExtractTxt').textContent = 'Extracting…';
@@ -1217,8 +1195,6 @@ async function extractFormatFromSample(){
   var content = pasted;
   fmtFiles.forEach(function(f){ content += '\n\n=== FILE: ' + f.name + ' ===\n' + f.text; });
   if (!content.trim()) return alert('Please paste or upload a sample lesson plan first.');
-  var apiKey = getApiKey();
-  if (!apiKey) return alert('Please enter your Anthropic API key on the Generate Lesson Plan page first — it is shared across the app.');
 
   document.getElementById('fmtExtractSpin').classList.add('show');
   document.getElementById('fmtExtractTxt').textContent = 'Inferring…';
@@ -1327,8 +1303,6 @@ async function generateLessonPlan(){
   if (!title) return alert('Please enter a lesson/topic title.');
   if (!content.trim()) return alert('Please paste or upload the content/topics to be taught.');
   if (!fmt) return alert('Please select a lesson plan format.');
-  var apiKey = getApiKey();
-  if (!apiKey) return alert('Please enter your Anthropic API key.');
 
   var btn = document.getElementById('genBtn');
   btn.disabled = true;
@@ -1392,8 +1366,6 @@ function renderGenPreview(){
 async function regenerateSection(i){
   var fmt = formatsCache.find(function(f){ return f.id === currentGeneration.format_id; });
   var s = currentGeneration.sections[i];
-  var apiKey = getApiKey();
-  if (!apiKey) return alert('Please enter your Anthropic API key.');
   try {
     var sys = 'You are an expert Islamic Studies lesson planner.' + (fmt && fmt.philosophy ? ('\n\nFacilitator\'s teaching philosophy:\n' + fmt.philosophy) : '');
     var usr = 'Write ONLY the content for one section of a lesson plan titled "' + currentGeneration.title + '".\nSection: "' + s.label + '"\nGuidance: ' + (s.guidance||'') + '\nLearning Outcomes:\n' + currentGeneration.learning_outcomes.join('\n') + '\n\nContent/topics being taught:\n' + currentGeneration.source_content.slice(0,4000) + '\n\nReturn plain text only — no JSON, no markdown headers, just the section content.';
