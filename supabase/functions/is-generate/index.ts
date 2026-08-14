@@ -25,6 +25,14 @@ Deno.serve(async (req) => {
     const { data: userData, error: userErr } = await client.auth.getUser(token);
     if (userErr || !userData.user) return jsonResponse({ error: "Please log in first." }, 401);
 
+    const { data: profile } = await client
+      .from("is_profiles")
+      .select("is_active")
+      .eq("id", userData.user.id)
+      .maybeSingle();
+    if (profile && profile.is_active === false)
+      return jsonResponse({ error: "This account has been deactivated. Please contact your administrator." }, 403);
+
     if (!ANTHROPIC_API_KEY) {
       console.error("ANTHROPIC_API_KEY secret is not set on this project.");
       return jsonResponse({ error: "AI generation is not configured yet. Please contact the site administrator." }, 500);
