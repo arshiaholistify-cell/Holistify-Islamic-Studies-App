@@ -1,0 +1,13 @@
+{
+  "name": "Holistify Islamic Studies",
+  "short_name": "Islamic Studies",
+  "description": "Lesson plans, tracked outcomes, and a pathway to Jannah",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFF8EE",
+  "theme_color": "#5B8C3E",
+  "icons": [
+    { "src": "holistify-logo.png", "sizes": "133x40", "type": "image/png" }
+  ]
+}

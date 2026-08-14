@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#5B8C3E">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Islamic Studies">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="holistify-logo.png">
 <title>Holistify Islamic Studies — Lesson Plan Generator</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
@@ -189,7 +196,34 @@ textarea{resize:vertical}
 .clickable{cursor:pointer}
 .clickable:hover{color:var(--g)}
 .two-col{display:grid;grid-template-columns:280px 1fr;gap:18px;align-items:start}
-@media(max-width:900px){.two-col{grid-template-columns:1fr}#appShell{grid-template-columns:1fr}.sidebar{display:none}}
+
+/* ===== Mobile nav ===== */
+.mob-nav-btn{display:none;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink);padding:4px 6px;line-height:1}
+.mob-overlay{display:none;position:fixed;inset:0;background:rgba(26,26,46,.45);z-index:70}
+.mob-overlay.show{display:block}
+
+@media(max-width:900px){
+  .two-col{grid-template-columns:1fr}
+  #appShell{grid-template-columns:1fr}
+  .mob-nav-btn{display:inline-flex;align-items:center;justify-content:center}
+  .sidebar{position:fixed;top:0;left:0;bottom:0;width:250px;z-index:80;transform:translateX(-100%);
+    transition:transform .2s ease;box-shadow:8px 0 28px rgba(0,0,0,.18);padding-top:66px}
+  .sidebar.mobile-open{transform:translateX(0)}
+  .topbar{padding:0 14px;gap:10px}
+  .logo{font-size:15px}
+  .userchip{gap:6px;font-size:11px}
+  .userchip #topUserName{display:none}
+  .main{padding:16px 14px}
+  .fg{grid-template-columns:1fr}
+  .metrics{grid-template-columns:repeat(2,1fr)}
+  .rw-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+  .auth-card{padding:30px 22px}
+}
+@media(max-width:480px){
+  .metrics{grid-template-columns:1fr 1fr}
+  .steps .sl{font-size:9px}
+  .pg-title{font-size:20px}
+}
 
 /* ===== Toast ===== */
 #toast{position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:8px}
@@ -260,6 +294,7 @@ textarea{resize:vertical}
 <!-- ================= APP SHELL ================= -->
 <div id="appShell">
   <header class="topbar">
+    <button class="mob-nav-btn" onclick="toggleMobileNav()" title="Menu">☰</button>
     <div class="logo">🕌 Holistify <b>Islamic Studies</b></div>
     <div class="userchip">
       <span class="role-pill" id="topRolePill">—</span>
@@ -268,6 +303,7 @@ textarea{resize:vertical}
       <button class="btn-logout" onclick="handleLogout()">⏻ Logout</button>
     </div>
   </header>
+  <div class="mob-overlay" id="mobOverlay" onclick="closeMobileNav()"></div>
 
   <nav class="sidebar" id="sidebar"></nav>
 
@@ -847,6 +883,8 @@ function goPage(id){
   if (page) page.classList.add('active');
   var nav = document.getElementById('nav-' + id);
   if (nav) nav.classList.add('active');
+  closeMobileNav();
+  document.getElementById('mainArea').scrollTop = 0;
 
   if (id === 'plans') loadSavedPlans();
   if (id === 'students') loadStudentsPage();
@@ -854,6 +892,15 @@ function goPage(id){
   if (id === 'my-goals') loadMyGoals();
   if (id === 'my-reflections') loadMyReflections();
   if (id === 'my-rewards') loadMyRewards();
+}
+
+function toggleMobileNav(){
+  document.getElementById('sidebar').classList.toggle('mobile-open');
+  document.getElementById('mobOverlay').classList.toggle('show');
+}
+function closeMobileNav(){
+  document.getElementById('sidebar').classList.remove('mobile-open');
+  document.getElementById('mobOverlay').classList.remove('show');
 }
 
 async function refreshOverviewStats(){
