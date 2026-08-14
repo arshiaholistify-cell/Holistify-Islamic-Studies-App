@@ -8,42 +8,50 @@
 <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
 <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --g:#2D7A3A;--gd:#1A3028;--gl:#EAF3EA;--gh:#BFE0C4;
-  --gold:#C17E2A;--goldl:#E8A030;--goldp:#FEF6E6;
-  --ink:#1C1A17;--inkm:#3D3A30;--inkl:#6B6258;--inkf:#9A8F82;
-  --sur:#F5F2EC;--surr:#fff;--bdr:rgba(120,100,70,.14);--bdrs:rgba(120,100,70,.26);
-  --red:#C0392B;--redp:#FBEAE8;--blue:#2558B8;--bluep:#E8EEFB;--amb:#C47B1A;--ambp:#FEF5E3;
-  --rsm:8px;--rmd:12px;--rlg:16px;--rxl:20px;
-  --sh:0 2px 8px rgba(0,0,0,.07);--shm:0 10px 28px rgba(0,0,0,.12);
+  --g:#5B8C3E;--gd:#1A1A2E;--gl:#EEF5E6;--gh:#C5DDA8;
+  --gold:#E8A020;--goldl:#F9C74F;--goldp:#FFF8E6;
+  --ink:#1A1A2E;--inkm:#2D2D42;--inkl:#8892A4;--inkf:#B0BAC6;
+  --sur:#FFF8EE;--surr:#fff;--bdr:#E8ECF2;--bdrs:#E0EBD8;
+  --red:#E74C3C;--redp:#FFF0F0;--blue:#3A86C8;--bluep:#E8F3FC;--amb:#F4833A;--ambp:#FFF5EC;
+  --rsm:10px;--rmd:12px;--rlg:16px;--rxl:20px;
+  --sh:0 2px 16px rgba(26,26,46,.06);--shm:0 8px 32px rgba(26,26,46,.18);
 }
 html,body{height:100%}
-body{font-family:'Inter',-apple-system,sans-serif;background:var(--sur);color:var(--ink);font-size:14px;line-height:1.55}
-h1,h2,h3,.serif{font-family:'DM Serif Display',Georgia,serif}
+body{font-family:'Nunito',-apple-system,sans-serif;background:var(--sur);color:var(--ink);font-size:14px;line-height:1.55}
+h1,h2,h3,.serif{font-family:'Nunito',sans-serif;font-weight:900}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-thumb{background:var(--bdrs);border-radius:8px}
 
-/* ===== Auth screen ===== */
-#authScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(circle at 20% 20%,#22432f,#0f1f16 70%)}
-.auth-card{width:100%;max-width:420px;background:#fff;border-radius:var(--rxl);box-shadow:var(--shm);padding:32px 30px}
+/* ===== Auth screen (Earlyverse-style glassmorphic card + floating bubbles) ===== */
+@keyframes floatBubble{0%{transform:translateY(0) scale(1);opacity:.55}50%{transform:translateY(-22px) scale(1.04);opacity:.7}100%{transform:translateY(0) scale(1);opacity:.55}}
+@keyframes fadeSlideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+#authScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden;position:relative;
+  background:linear-gradient(160deg,#c8edb0 0%,#a3d982 30%,#7bc255 60%,#5B8C3E 100%)}
+.auth-bubble{position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.6),rgba(163,217,130,.25));
+  border:1.5px solid rgba(255,255,255,.5);animation:floatBubble ease-in-out infinite;pointer-events:none}
+.auth-card{width:100%;max-width:420px;background:rgba(255,255,255,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-radius:24px;box-shadow:0 24px 64px rgba(40,80,20,.22),0 2px 8px rgba(0,0,0,.08);border:1.5px solid rgba(255,255,255,.8);
+  padding:40px 36px;position:relative;z-index:1;animation:fadeSlideUp .45s ease both;max-height:90vh;overflow-y:auto}
 .auth-logo{text-align:center;margin-bottom:6px}
-.auth-logo .m{font-size:30px}
-.auth-title{font-family:'DM Serif Display',serif;font-size:22px;color:var(--gd);text-align:center;margin-bottom:2px}
-.auth-sub{font-size:12.5px;color:var(--inkl);text-align:center;margin-bottom:22px}
+.auth-logo .m{font-size:44px}
+.auth-title{font-size:22px;font-weight:900;color:var(--ink);text-align:center;margin-bottom:2px}
+.auth-sub{font-size:13px;color:var(--inkl);font-weight:600;text-align:center;margin-bottom:26px}
 .auth-tabs{display:flex;background:var(--sur);border-radius:var(--rsm);padding:3px;margin-bottom:20px}
-.auth-tab{flex:1;text-align:center;padding:8px;font-size:12.5px;font-weight:600;color:var(--inkl);cursor:pointer;border-radius:6px}
+.auth-tab{flex:1;text-align:center;padding:8px;font-size:12.5px;font-weight:800;color:var(--inkl);cursor:pointer;border-radius:8px}
 .auth-tab.on{background:#fff;color:var(--g);box-shadow:var(--sh)}
 .auth-pane{display:none}
 .auth-pane.on{display:block}
 .role-toggle{display:flex;gap:8px;margin-bottom:4px}
-.role-opt{flex:1;border:1.5px solid var(--bdr);border-radius:var(--rsm);padding:10px;text-align:center;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--inkl)}
+.role-opt{flex:1;border:2px solid var(--bdrs);border-radius:var(--rsm);padding:10px;text-align:center;cursor:pointer;font-size:12.5px;font-weight:800;color:var(--inkl);background:#F6FAF2}
 .role-opt.on{border-color:var(--g);background:var(--gl);color:var(--g)}
-.auth-err{background:var(--redp);color:var(--red);border-radius:var(--rsm);padding:9px 12px;font-size:12px;margin-bottom:12px;display:none}
+.pin-input{letter-spacing:8px;font-size:20px;text-align:center}
+.auth-err{background:var(--redp);color:#c0392b;border-radius:var(--rsm);padding:10px 12px;font-size:12.5px;font-weight:700;margin-bottom:12px;display:none}
 .auth-err.show{display:block}
-.auth-ok{background:var(--gl);color:var(--g);border-radius:var(--rsm);padding:9px 12px;font-size:12px;margin-bottom:12px;display:none}
+.auth-ok{background:var(--gl);color:var(--g);border-radius:var(--rsm);padding:10px 12px;font-size:12.5px;font-weight:700;margin-bottom:12px;display:none}
 .auth-ok.show{display:block}
 .sb-config-link{display:block;text-align:center;margin-top:16px;font-size:11.5px;color:var(--inkf);cursor:pointer;text-decoration:underline}
 .sb-config-box{display:none;margin-top:14px;padding:14px;background:var(--sur);border-radius:var(--rmd)}
@@ -52,56 +60,56 @@ h1,h2,h3,.serif{font-family:'DM Serif Display',Georgia,serif}
 /* ===== App shell ===== */
 #appShell{display:none;grid-template-columns:224px 1fr;grid-template-rows:58px 1fr;min-height:100vh}
 #appShell.show{display:grid}
-.topbar{grid-column:1/-1;background:var(--gd);color:#fff;display:flex;align-items:center;gap:14px;padding:0 20px;position:sticky;top:0;z-index:50;box-shadow:0 2px 10px rgba(0,0,0,.15)}
-.logo{font-family:'DM Serif Display',serif;font-size:18px;letter-spacing:-.2px}
-.logo b{color:var(--goldl)}
+.topbar{grid-column:1/-1;background:var(--gl);color:var(--ink);display:flex;align-items:center;gap:14px;padding:0 20px;position:sticky;top:0;z-index:50;border-bottom:2px solid var(--gh)}
+.logo{font-size:18px;font-weight:900;letter-spacing:-.2px;color:var(--ink)}
+.logo b{color:var(--g)}
 .userchip{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px}
-.role-pill{background:rgba(255,255,255,.15);padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:600;text-transform:capitalize}
-.pts-pill{background:var(--goldl);color:#3a2400;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
-.btn-logout{background:rgba(255,255,255,.14);border:none;color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit}
-.btn-logout:hover{background:rgba(255,255,255,.24)}
+.role-pill{background:var(--g);color:#fff;padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:700;text-transform:capitalize}
+.pts-pill{background:var(--goldl);color:#3a2400;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:800}
+.btn-logout{background:#fff;border:2px solid var(--gh);color:var(--g);border-radius:10px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
+.btn-logout:hover{background:var(--gl)}
 
-.sidebar{background:#FDFBF7;border-right:1px solid #E4DDD2;padding:14px 0;overflow-y:auto}
-.sb-lbl{font-size:9.5px;font-weight:700;letter-spacing:1.2px;color:var(--inkf);text-transform:uppercase;padding:12px 18px 5px}
-.ni{display:flex;align-items:center;gap:9px;padding:9px 14px;margin:2px 8px;border-radius:10px;cursor:pointer;font-size:13px;color:var(--inkl);transition:.15s}
-.ni:hover{background:#F5EFE3;color:var(--inkm)}
-.ni.active{background:var(--goldp);color:#7A4A00;font-weight:600}
+.sidebar{background:#FDFBF7;border-right:1px solid var(--gh);padding:14px 0;overflow-y:auto}
+.sb-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;color:var(--inkf);text-transform:uppercase;padding:12px 18px 5px}
+.ni{display:flex;align-items:center;gap:9px;padding:9px 14px;margin:2px 8px;border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;color:var(--inkl);transition:.15s}
+.ni:hover{background:var(--gl);color:var(--inkm)}
+.ni.active{background:var(--gl);color:var(--g);font-weight:800}
 
 .main{overflow-y:auto;padding:26px 30px}
 .page{display:none;max-width:1120px}
 .page.active{display:block}
-.pg-title{font-family:'DM Serif Display',serif;font-size:24px;color:var(--gd);margin-bottom:4px}
-.pg-sub{font-size:13px;color:var(--inkl);margin-bottom:20px;max-width:760px}
+.pg-title{font-size:24px;font-weight:900;color:var(--ink);margin-bottom:4px}
+.pg-sub{font-size:13px;color:var(--inkl);font-weight:600;margin-bottom:20px;max-width:760px}
 
 /* ===== Cards / metrics ===== */
-.card{background:#fff;border:1px solid #EDE8E0;border-radius:var(--rxl);padding:20px 22px;margin-bottom:16px;box-shadow:var(--sh)}
-.card-t{font-size:14.5px;font-weight:700;color:var(--ink);margin-bottom:14px;display:flex;align-items:center;gap:8px}
-.card-t .ci{width:24px;height:24px;background:var(--gl);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.card{background:#fff;border:none;border-radius:var(--rxl);padding:20px 22px;margin-bottom:16px;box-shadow:var(--sh)}
+.card-t{font-size:14.5px;font-weight:800;color:var(--ink);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.card-t .ci{width:26px;height:26px;background:var(--gl);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px}
 .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px}
-.mc{background:#fff;border:1px solid #EDE8E0;border-radius:var(--rlg);padding:15px 17px;box-shadow:var(--sh)}
-.mc-l{font-size:10px;color:var(--inkf);text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:6px}
-.mc-v{font-family:'DM Serif Display',serif;font-size:26px;color:var(--gd)}
+.mc{background:#fff;border:none;border-radius:var(--rlg);padding:15px 17px;box-shadow:var(--sh)}
+.mc-l{font-size:10px;color:var(--inkf);text-transform:uppercase;letter-spacing:.7px;font-weight:800;margin-bottom:6px}
+.mc-v{font-size:26px;font-weight:900;color:var(--ink)}
 
 /* ===== Forms ===== */
 .fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .full{grid-column:1/-1}
 .fg1{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
-label{font-size:12px;font-weight:600;color:var(--inkm)}
-input,select,textarea{border:1.5px solid var(--bdr);border-radius:var(--rsm);padding:9px 12px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;outline:none;width:100%;transition:.15s}
-input:focus,select:focus,textarea:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(45,122,58,.10)}
+label{font-size:11px;font-weight:800;color:var(--inkl);text-transform:uppercase;letter-spacing:.5px}
+input,select,textarea{border:2px solid var(--bdrs);border-radius:var(--rsm);padding:9px 12px;font-size:13px;font-weight:600;font-family:inherit;color:var(--ink);background:#F6FAF2;outline:none;width:100%;transition:.15s}
+input:focus,select:focus,textarea:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(91,140,62,.15)}
 textarea{resize:vertical}
 .hint{font-size:11.5px;color:var(--inkl);margin-bottom:10px;line-height:1.5}
 
 /* ===== Buttons ===== */
-.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:var(--rsm);font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:.15s}
-.btn-p{background:var(--g);color:#fff;box-shadow:0 2px 8px rgba(45,122,58,.28)}
-.btn-p:hover{background:var(--gd)}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:var(--rsm);font-size:13px;font-weight:800;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.btn-p{background:linear-gradient(135deg,var(--g),#7AB648);color:#fff;box-shadow:0 4px 16px rgba(91,140,62,.3)}
+.btn-p:hover{background:#4a7532;transform:translateY(-1px)}
 .btn-g{background:var(--goldl);color:#3a2400}
 .btn-g:hover{background:#d4901a}
-.btn-s{background:#fff;color:var(--inkm);border:1.5px solid var(--bdr)}
+.btn-s{background:#fff;color:var(--inkm);border:2px solid var(--bdr)}
 .btn-s:hover{background:var(--sur)}
 .btn-d{background:var(--redp);color:var(--red)}
-.btn-d:hover{background:#f6d8d5}
+.btn-d:hover{background:#ffdada}
 .btn-sm{padding:6px 12px;font-size:12px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
@@ -168,8 +176,8 @@ textarea{resize:vertical}
 .rw-title{font-size:12.5px;font-weight:700;color:var(--ink)}
 .rw-desc{font-size:11px;color:var(--inkl);margin-top:3px}
 .rw-pts{margin-top:7px;font-size:11px;font-weight:700;color:var(--gold)}
-.hasanat-banner{background:linear-gradient(120deg,var(--gd),#2D5240);color:#fff;border-radius:var(--rxl);padding:26px 28px;margin-bottom:20px;text-align:center}
-.hasanat-num{font-family:'DM Serif Display',serif;font-size:44px;color:var(--goldl)}
+.hasanat-banner{background:linear-gradient(135deg,#5B8C3E 0%,#3A7D44 50%,#2E6B5E 100%);color:#fff;border-radius:24px;padding:32px 28px;margin-bottom:20px;text-align:center;box-shadow:0 8px 32px rgba(91,140,62,.28)}
+.hasanat-num{font-size:44px;font-weight:900;color:var(--goldl)}
 .hasanat-lbl{font-size:12px;opacity:.8;letter-spacing:.5px;text-transform:uppercase}
 .motiv-line{margin-top:10px;font-size:13px;font-style:italic;opacity:.92}
 
@@ -197,7 +205,7 @@ textarea{resize:vertical}
 @media print{
   body>*:not(#printArea){display:none!important}
   #printArea{display:block!important;padding:20px}
-  #printArea h1{font-family:'DM Serif Display',serif;color:var(--gd);font-size:22px;margin-bottom:4px}
+  #printArea h1{font-weight:900;color:var(--ink);font-size:22px;margin-bottom:4px}
   #printArea .pmeta{font-size:12px;color:var(--inkl);margin-bottom:18px}
   #printArea .psec{margin-bottom:16px;page-break-inside:avoid}
   #printArea .psec h3{font-size:14px;color:var(--g);border-bottom:2px solid var(--gh);padding-bottom:4px;margin-bottom:6px}
@@ -209,9 +217,10 @@ textarea{resize:vertical}
 
 <!-- ================= AUTH SCREEN ================= -->
 <div id="authScreen">
+  <div id="authBubbles"></div>
   <div class="auth-card">
     <div class="auth-logo"><span class="m">🕌</span></div>
-    <div class="auth-title">Holistify Islamic Studies</div>
+    <div class="auth-title">Welcome back!</div>
     <div class="auth-sub">Lesson plans, tracked outcomes, and a pathway to Jannah</div>
 
     <div class="auth-tabs">
@@ -224,10 +233,17 @@ textarea{resize:vertical}
 
     <!-- Login -->
     <div class="auth-pane on" id="paneLogin">
-      <div class="fg1"><label>Email</label><input id="loginEmail" type="email" placeholder="you@example.com"></div>
-      <div class="fg1"><label>Password</label><input id="loginPassword" type="password" placeholder="••••••••"></div>
+      <div class="fg1"><label>I am a...</label>
+        <div class="role-toggle">
+          <div class="role-opt on" id="loginRoleFacBtn" onclick="pickLoginRole('facilitator')">🧑‍🏫 Facilitator</div>
+          <div class="role-opt" id="loginRoleStuBtn" onclick="pickLoginRole('student')">🎓 Student</div>
+        </div>
+      </div>
+      <div class="fg1"><label>Your Name</label><input id="loginName" placeholder="e.g. Ustadha Amina" autofocus></div>
+      <div class="fg1"><label>Class / Group (if known)</label><input id="loginClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
+      <div class="fg1"><label>4-Digit PIN</label><input id="loginPin" class="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>
       <button class="btn btn-p" style="width:100%;justify-content:center" onclick="handleLogin()">
-        <span class="spin" id="loginSpin"></span><span id="loginBtnTxt">Log In</span>
+        <span class="spin" id="loginSpin"></span><span id="loginBtnTxt">Sign In →</span>
       </button>
     </div>
 
@@ -240,9 +256,9 @@ textarea{resize:vertical}
         </div>
       </div>
       <div class="fg1"><label>Full Name</label><input id="suName" placeholder="e.g. Ustadha Amina"></div>
-      <div class="fg1"><label>Email</label><input id="suEmail" type="email" placeholder="you@example.com"></div>
-      <div class="fg1"><label>Password</label><input id="suPassword" type="password" placeholder="At least 6 characters"></div>
       <div class="fg1" id="suClassWrap" style="display:none"><label>Class / Group</label><input id="suClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
+      <div class="fg1"><label>Choose a 4-Digit PIN</label><input id="suPin" class="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>
+      <div class="fg1"><label>Confirm PIN</label><input id="suPinConfirm" class="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>
       <button class="btn btn-p" style="width:100%;justify-content:center" onclick="handleSignup()">
         <span class="spin" id="suSpin"></span><span id="suBtnTxt">Create Account</span>
       </button>
@@ -688,6 +704,33 @@ function pickRole(r){
   document.getElementById('roleStuBtn').classList.toggle('on', r === 'student');
   document.getElementById('suClassWrap').style.display = r === 'student' ? 'block' : 'none';
 }
+var loginPickedRole = 'facilitator';
+function pickLoginRole(r){
+  loginPickedRole = r;
+  document.getElementById('loginRoleFacBtn').classList.toggle('on', r === 'facilitator');
+  document.getElementById('loginRoleStuBtn').classList.toggle('on', r === 'student');
+}
+
+var AUTH_BUBBLES = [
+  {size:80,top:'8%',left:'6%',delay:'0s',dur:'7s'}, {size:50,top:'20%',left:'88%',delay:'1.2s',dur:'9s'},
+  {size:120,top:'55%',left:'3%',delay:'0.5s',dur:'11s'}, {size:40,top:'75%',left:'80%',delay:'2s',dur:'8s'},
+  {size:65,top:'85%',left:'18%',delay:'1.8s',dur:'10s'}, {size:30,top:'40%',left:'92%',delay:'0.8s',dur:'6s'},
+  {size:90,top:'10%',left:'55%',delay:'3s',dur:'12s'}, {size:45,top:'65%',left:'50%',delay:'2.5s',dur:'9s'}
+];
+function renderAuthBubbles(){
+  var el = document.getElementById('authBubbles');
+  if (!el) return;
+  el.innerHTML = AUTH_BUBBLES.map(function(b){
+    return '<div class="auth-bubble" style="width:' + b.size + 'px;height:' + b.size + 'px;top:' + b.top + ';left:' + b.left + ';animation-delay:' + b.delay + ';animation-duration:' + b.dur + '"></div>';
+  }).join('');
+}
+document.addEventListener('DOMContentLoaded', renderAuthBubbles);
+['loginPin','suPin','suPinConfirm'].forEach(function(id){
+  document.addEventListener('DOMContentLoaded', function(){
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', function(){ this.value = this.value.replace(/\D/g,'').slice(0,4); });
+  });
+});
 function showAuthErr(msg){
   var e = document.getElementById('authErr');
   e.textContent = msg; e.classList.add('show');
@@ -708,28 +751,26 @@ async function handleSignup(){
   var client = sbClient();
   if (!client) return showAuthErr('Supabase is not configured yet — use "Configure Supabase connection" below.');
   var name = document.getElementById('suName').value.trim();
-  var email = document.getElementById('suEmail').value.trim();
-  var password = document.getElementById('suPassword').value;
   var className = document.getElementById('suClass').value.trim();
-  if (!name || !email || !password) return showAuthErr('Please fill in your name, email and password.');
-  if (password.length < 6) return showAuthErr('Password must be at least 6 characters.');
+  var pin = document.getElementById('suPin').value.trim();
+  var pinConfirm = document.getElementById('suPinConfirm').value.trim();
+  if (!name) return showAuthErr('Please enter your name.');
+  if (!/^\d{4}$/.test(pin)) return showAuthErr('PIN must be exactly 4 digits.');
+  if (pin !== pinConfirm) return showAuthErr('PINs do not match.');
 
   document.getElementById('suSpin').classList.add('show');
   document.getElementById('suBtnTxt').textContent = 'Creating account…';
   try {
-    var { data, error } = await client.auth.signUp({
-      email: email, password: password,
-      options: { data: { full_name: name, role: pickedRole, class_name: pickedRole === 'student' ? className : '' } }
+    var { data, error } = await client.functions.invoke('is-signup', {
+      body: { full_name: name, role: pickedRole, class_name: pickedRole === 'student' ? className : '', pin: pin }
     });
     if (error) throw error;
-    if (data.session) {
-      await onAuthed(data.session);
-    } else {
-      switchAuthTab('login');
-      showAuthOk('Account created! Please check your email to confirm, then log in.');
-    }
+    if (data && data.error) throw new Error(data.error);
+    var { error: sessErr } = await client.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
+    if (sessErr) throw sessErr;
+    await onAuthed(data.session, data.profile);
   } catch (err) {
-    showAuthErr(err.message || 'Could not sign up.');
+    showAuthErr((err && err.message) || 'Could not sign up.');
   } finally {
     document.getElementById('suSpin').classList.remove('show');
     document.getElementById('suBtnTxt').textContent = 'Create Account';
@@ -740,21 +781,28 @@ async function handleLogin(){
   hideAuthMsgs();
   var client = sbClient();
   if (!client) return showAuthErr('Supabase is not configured yet — use "Configure Supabase connection" below.');
-  var email = document.getElementById('loginEmail').value.trim();
-  var password = document.getElementById('loginPassword').value;
-  if (!email || !password) return showAuthErr('Please enter your email and password.');
+  var name = document.getElementById('loginName').value.trim();
+  var className = document.getElementById('loginClass').value.trim();
+  var pin = document.getElementById('loginPin').value.trim();
+  if (!name) return showAuthErr('Please enter your name.');
+  if (!/^\d{4}$/.test(pin)) return showAuthErr('Please enter your 4-digit PIN.');
 
   document.getElementById('loginSpin').classList.add('show');
-  document.getElementById('loginBtnTxt').textContent = 'Logging in…';
+  document.getElementById('loginBtnTxt').textContent = 'Signing in…';
   try {
-    var { data, error } = await client.auth.signInWithPassword({ email: email, password: password });
+    var { data, error } = await client.functions.invoke('is-login', {
+      body: { full_name: name, pin: pin, role: loginPickedRole, class_name: className }
+    });
     if (error) throw error;
-    await onAuthed(data.session);
+    if (data && data.error) throw new Error(data.error);
+    var { error: sessErr } = await client.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
+    if (sessErr) throw sessErr;
+    await onAuthed(data.session, data.profile);
   } catch (err) {
-    showAuthErr(err.message || 'Could not log in.');
+    showAuthErr((err && err.message) || 'Incorrect name, role, or PIN.');
   } finally {
     document.getElementById('loginSpin').classList.remove('show');
-    document.getElementById('loginBtnTxt').textContent = 'Log In';
+    document.getElementById('loginBtnTxt').textContent = 'Sign In →';
   }
 }
 
@@ -766,23 +814,25 @@ async function handleLogout(){
   document.getElementById('authScreen').style.display = 'flex';
 }
 
-async function onAuthed(session){
+async function onAuthed(session, knownProfile){
   currentSession = session;
   var client = sbClient();
-  var profile = null;
-  for (var i = 0; i < 6; i++) {
-    var res = await client.from('is_profiles').select('*').eq('id', session.user.id).maybeSingle();
-    if (res.data) { profile = res.data; break; }
-    await new Promise(function(r){ setTimeout(r, 500); });
+  var profile = knownProfile || null;
+  if (!profile) {
+    for (var i = 0; i < 6; i++) {
+      var res = await client.from('is_profiles').select('*').eq('id', session.user.id).maybeSingle();
+      if (res.data) { profile = res.data; break; }
+      await new Promise(function(r){ setTimeout(r, 500); });
+    }
   }
   if (!profile) {
-    showAuthErr('Signed in, but your profile is still being created. Please try logging in again in a few seconds.');
+    showAuthErr('Signed in, but your profile could not be found. Please try logging in again.');
     return;
   }
   currentUser = profile;
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('appShell').classList.add('show');
-  document.getElementById('topUserName').textContent = profile.full_name || profile.email;
+  document.getElementById('topUserName').textContent = profile.full_name || 'User';
   document.getElementById('topRolePill').textContent = profile.role;
   await initRoleUI();
 }
@@ -1446,7 +1496,7 @@ async function exportDocx(plan){
   if (!plan) return alert('Nothing to export yet.');
   try {
     var D = docx;
-    var GREEN = '2D7A3A', DARK = '1A3028', GOLD = 'C17E2A';
+    var GREEN = '5B8C3E', DARK = '1A1A2E', GOLD = 'E8A020';
     var children = [];
     children.push(new D.Paragraph({ spacing:{after:60}, children:[ new D.TextRun({ text: plan.title, bold:true, size:40, font:'Calibri', color:DARK }) ] }));
     var metaLine = [plan.chapter_name && plan.chapter_name !== plan.title ? plan.chapter_name : '', plan.target_class ? ('Class: ' + plan.target_class) : '', new Date().toLocaleDateString()].filter(Boolean).join('   |   ');
@@ -1475,14 +1525,14 @@ async function exportPptx(plan){
     pptx.defineLayout({ name:'HOLIS', width:10, height:5.63 }); pptx.layout = 'HOLIS';
 
     var title = pptx.addSlide();
-    title.background = { color:'1A3028' };
+    title.background = { color:'1A1A2E' };
     title.addText(plan.title, { x:0.6, y:1.9, w:8.8, h:1.2, fontSize:32, bold:true, color:'FFFFFF', fontFace:'Calibri' });
     var sub = [plan.chapter_name && plan.chapter_name !== plan.title ? plan.chapter_name : '', plan.target_class ? ('Class: ' + plan.target_class) : '', new Date().toLocaleDateString()].filter(Boolean).join('   |   ');
     title.addText(sub, { x:0.6, y:3.1, w:8.8, h:0.6, fontSize:14, color:'E8A030', fontFace:'Calibri' });
 
     plan.sections.forEach(function(s){
       var sl = pptx.addSlide();
-      sl.addText(s.label, { x:0.5, y:0.35, w:9, h:0.7, fontSize:24, bold:true, color:'2D7A3A', fontFace:'Calibri' });
+      sl.addText(s.label, { x:0.5, y:0.35, w:9, h:0.7, fontSize:24, bold:true, color:'5B8C3E', fontFace:'Calibri' });
       sl.addShape('line', { x:0.5, y:1.05, w:9, h:0, line:{ color:'BFE0C4', width:2 } });
       sl.addText(s.text || '(not filled in)', { x:0.5, y:1.25, w:9, h:4, fontSize:14, color:'1C1A17', fontFace:'Calibri', valign:'top' });
     });
@@ -1669,11 +1719,11 @@ async function exportReportDocx(){
   try {
     var D = docx;
     var children = [
-      new D.Paragraph({ spacing:{after:60}, children:[ new D.TextRun({ text:'Achievement & Reflection Report', bold:true, size:36, color:'1A3028' }) ] }),
+      new D.Paragraph({ spacing:{after:60}, children:[ new D.TextRun({ text:'Achievement & Reflection Report', bold:true, size:36, color:'1A1A2E' }) ] }),
       new D.Paragraph({ spacing:{after:240}, children:[ new D.TextRun({ text:(d.student.full_name||d.student.email) + (d.from||d.to ? (' — ' + (d.from||'—') + ' to ' + (d.to||'—')) : ''), italics:true, color:'6B6258' }) ] }),
       new D.Paragraph({ spacing:{after:200}, children:[ new D.TextRun({ text:'Goals set: ' + d.goals.length + '   Achieved: ' + d.achieved.length + '   Reflections: ' + d.reflections.length + '   Hasanat: ' + d.points, bold:true }) ] })
     ];
-    function heading(t){ children.push(new D.Paragraph({ spacing:{before:200,after:80}, children:[ new D.TextRun({ text:t, bold:true, size:26, color:'2D7A3A' }) ] })); }
+    function heading(t){ children.push(new D.Paragraph({ spacing:{before:200,after:80}, children:[ new D.TextRun({ text:t, bold:true, size:26, color:'5B8C3E' }) ] })); }
     heading('Goals');
     (d.goals.length ? d.goals : [{goal_text:'None', status:''}]).forEach(function(g){ children.push(new D.Paragraph({ text: '• [' + g.status + '] ' + g.goal_text })); });
     heading('Reflections');
