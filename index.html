@@ -53,9 +53,6 @@ h1,h2,h3,.serif{font-family:'Nunito',sans-serif;font-weight:900}
 .auth-err.show{display:block}
 .auth-ok{background:var(--gl);color:var(--g);border-radius:var(--rsm);padding:10px 12px;font-size:12.5px;font-weight:700;margin-bottom:12px;display:none}
 .auth-ok.show{display:block}
-.sb-config-link{display:block;text-align:center;margin-top:16px;font-size:11.5px;color:var(--inkf);cursor:pointer;text-decoration:underline}
-.sb-config-box{display:none;margin-top:14px;padding:14px;background:var(--sur);border-radius:var(--rmd)}
-.sb-config-box.show{display:block}
 
 /* ===== App shell ===== */
 #appShell{display:none;grid-template-columns:224px 1fr;grid-template-rows:58px 1fr;min-height:100vh}
@@ -257,12 +254,6 @@ textarea{resize:vertical}
       </button>
     </div>
 
-    <div class="sb-config-link" onclick="toggleSbConfig()">⚙ Configure Supabase connection (local testing)</div>
-    <div class="sb-config-box" id="sbConfigBox">
-      <div class="fg1"><label>Supabase URL</label><input id="cfgSbUrl" placeholder="https://xxxx.supabase.co"></div>
-      <div class="fg1"><label>Supabase Anon Key</label><input id="cfgSbKey" placeholder="eyJhbGciOi..."></div>
-      <button class="btn btn-s btn-sm" onclick="saveSbConfig()">Save &amp; Reload</button>
-    </div>
   </div>
 </div>
 
@@ -554,31 +545,13 @@ var _SB_KEY = '__IS_SUPABASE_ANON_KEY__';
 var sb = null;
 
 function sbConfigured(){
-  var u = _SB_URL.indexOf('supabase.co') >= 0 ? _SB_URL : (localStorage.getItem('is_sb_url')||'');
-  var k = _SB_KEY.indexOf('__') === -1 && _SB_KEY.length > 10 ? _SB_KEY : (localStorage.getItem('is_sb_key')||'');
-  return u.indexOf('supabase.co') >= 0 && k.length > 10;
+  return _SB_URL.indexOf('supabase.co') >= 0 && _SB_KEY.indexOf('__') === -1 && _SB_KEY.length > 10;
 }
 function sbClient(){
   if (sb) return sb;
-  var u = _SB_URL.indexOf('supabase.co') >= 0 ? _SB_URL : (localStorage.getItem('is_sb_url')||'');
-  var k = _SB_KEY.indexOf('__') === -1 && _SB_KEY.length > 10 ? _SB_KEY : (localStorage.getItem('is_sb_key')||'');
-  if (u.indexOf('supabase.co') < 0 || k.length < 10) return null;
-  sb = window.supabase.createClient(u, k);
+  if (!sbConfigured()) return null;
+  sb = window.supabase.createClient(_SB_URL, _SB_KEY);
   return sb;
-}
-function toggleSbConfig(){
-  var box = document.getElementById('sbConfigBox');
-  box.classList.toggle('show');
-  document.getElementById('cfgSbUrl').value = localStorage.getItem('is_sb_url') || '';
-  document.getElementById('cfgSbKey').value = localStorage.getItem('is_sb_key') || '';
-}
-function saveSbConfig(){
-  var u = document.getElementById('cfgSbUrl').value.trim();
-  var k = document.getElementById('cfgSbKey').value.trim();
-  if (!u || !k) return alert('Please enter both the Supabase URL and anon key.');
-  localStorage.setItem('is_sb_url', u);
-  localStorage.setItem('is_sb_key', k);
-  location.reload();
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1866,8 +1839,7 @@ async function loadMyRewards(){
 document.addEventListener('DOMContentLoaded', function(){
   pickRole('facilitator');
   if (!sbConfigured()) {
-    document.getElementById('sbConfigBox').classList.add('show');
-    showAuthErr('Supabase is not configured yet. Enter your project URL and anon key below (stored only in this browser) to continue.');
+    showAuthErr('Supabase is not configured on this deployment. Please contact the site administrator.');
   } else {
     restoreSession();
   }
