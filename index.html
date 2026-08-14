@@ -233,15 +233,8 @@ textarea{resize:vertical}
 
     <!-- Login -->
     <div class="auth-pane on" id="paneLogin">
-      <div class="fg1"><label>I am a...</label>
-        <div class="role-toggle">
-          <div class="role-opt on" id="loginRoleFacBtn" onclick="pickLoginRole('facilitator')">🧑‍🏫 Facilitator</div>
-          <div class="role-opt" id="loginRoleStuBtn" onclick="pickLoginRole('student')">🎓 Student</div>
-        </div>
-      </div>
-      <div class="fg1"><label>Your Name</label><input id="loginName" placeholder="e.g. Ustadha Amina" autofocus></div>
-      <div class="fg1"><label>Class / Group (if known)</label><input id="loginClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
-      <div class="fg1"><label>4-Digit PIN</label><input id="loginPin" class="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>
+      <div class="fg1"><label>Email</label><input id="loginEmail" type="email" placeholder="you@example.com" autofocus></div>
+      <div class="fg1"><label>Password</label><input id="loginPassword" type="password" placeholder="••••••••"></div>
       <button class="btn btn-p" style="width:100%;justify-content:center" onclick="handleLogin()">
         <span class="spin" id="loginSpin"></span><span id="loginBtnTxt">Sign In →</span>
       </button>
@@ -256,9 +249,9 @@ textarea{resize:vertical}
         </div>
       </div>
       <div class="fg1"><label>Full Name</label><input id="suName" placeholder="e.g. Ustadha Amina"></div>
+      <div class="fg1"><label>Email</label><input id="suEmail" type="email" placeholder="you@example.com"></div>
+      <div class="fg1"><label>Password</label><input id="suPassword" type="password" placeholder="At least 6 characters"></div>
       <div class="fg1" id="suClassWrap" style="display:none"><label>Class / Group</label><input id="suClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
-      <div class="fg1"><label>Choose a 4-Digit PIN</label><input id="suPin" class="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>
-      <div class="fg1"><label>Confirm PIN</label><input id="suPinConfirm" class="pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>
       <button class="btn btn-p" style="width:100%;justify-content:center" onclick="handleSignup()">
         <span class="spin" id="suSpin"></span><span id="suBtnTxt">Create Account</span>
       </button>
@@ -704,13 +697,6 @@ function pickRole(r){
   document.getElementById('roleStuBtn').classList.toggle('on', r === 'student');
   document.getElementById('suClassWrap').style.display = r === 'student' ? 'block' : 'none';
 }
-var loginPickedRole = 'facilitator';
-function pickLoginRole(r){
-  loginPickedRole = r;
-  document.getElementById('loginRoleFacBtn').classList.toggle('on', r === 'facilitator');
-  document.getElementById('loginRoleStuBtn').classList.toggle('on', r === 'student');
-}
-
 var AUTH_BUBBLES = [
   {size:80,top:'8%',left:'6%',delay:'0s',dur:'7s'}, {size:50,top:'20%',left:'88%',delay:'1.2s',dur:'9s'},
   {size:120,top:'55%',left:'3%',delay:'0.5s',dur:'11s'}, {size:40,top:'75%',left:'80%',delay:'2s',dur:'8s'},
@@ -725,12 +711,6 @@ function renderAuthBubbles(){
   }).join('');
 }
 document.addEventListener('DOMContentLoaded', renderAuthBubbles);
-['loginPin','suPin','suPinConfirm'].forEach(function(id){
-  document.addEventListener('DOMContentLoaded', function(){
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('input', function(){ this.value = this.value.replace(/\D/g,'').slice(0,4); });
-  });
-});
 function showAuthErr(msg){
   var e = document.getElementById('authErr');
   e.textContent = msg; e.classList.add('show');
@@ -751,26 +731,28 @@ async function handleSignup(){
   var client = sbClient();
   if (!client) return showAuthErr('Supabase is not configured yet — use "Configure Supabase connection" below.');
   var name = document.getElementById('suName').value.trim();
+  var email = document.getElementById('suEmail').value.trim();
+  var password = document.getElementById('suPassword').value;
   var className = document.getElementById('suClass').value.trim();
-  var pin = document.getElementById('suPin').value.trim();
-  var pinConfirm = document.getElementById('suPinConfirm').value.trim();
-  if (!name) return showAuthErr('Please enter your name.');
-  if (!/^\d{4}$/.test(pin)) return showAuthErr('PIN must be exactly 4 digits.');
-  if (pin !== pinConfirm) return showAuthErr('PINs do not match.');
+  if (!name || !email || !password) return showAuthErr('Please fill in your name, email and password.');
+  if (password.length < 6) return showAuthErr('Password must be at least 6 characters.');
 
   document.getElementById('suSpin').classList.add('show');
   document.getElementById('suBtnTxt').textContent = 'Creating account…';
   try {
-    var { data, error } = await client.functions.invoke('is-signup', {
-      body: { full_name: name, role: pickedRole, class_name: pickedRole === 'student' ? className : '', pin: pin }
+    var { data, error } = await client.auth.signUp({
+      email: email, password: password,
+      options: { data: { full_name: name, role: pickedRole, class_name: pickedRole === 'student' ? className : '' } }
     });
     if (error) throw error;
-    if (data && data.error) throw new Error(data.error);
-    var { error: sessErr } = await client.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
-    if (sessErr) throw sessErr;
-    await onAuthed(data.session, data.profile);
+    if (data.session) {
+      await onAuthed(data.session);
+    } else {
+      switchAuthTab('login');
+      showAuthOk('Account created! Please check your email to confirm, then log in.');
+    }
   } catch (err) {
-    showAuthErr((err && err.message) || 'Could not sign up.');
+    showAuthErr(err.message || 'Could not sign up.');
   } finally {
     document.getElementById('suSpin').classList.remove('show');
     document.getElementById('suBtnTxt').textContent = 'Create Account';
@@ -781,25 +763,18 @@ async function handleLogin(){
   hideAuthMsgs();
   var client = sbClient();
   if (!client) return showAuthErr('Supabase is not configured yet — use "Configure Supabase connection" below.');
-  var name = document.getElementById('loginName').value.trim();
-  var className = document.getElementById('loginClass').value.trim();
-  var pin = document.getElementById('loginPin').value.trim();
-  if (!name) return showAuthErr('Please enter your name.');
-  if (!/^\d{4}$/.test(pin)) return showAuthErr('Please enter your 4-digit PIN.');
+  var email = document.getElementById('loginEmail').value.trim();
+  var password = document.getElementById('loginPassword').value;
+  if (!email || !password) return showAuthErr('Please enter your email and password.');
 
   document.getElementById('loginSpin').classList.add('show');
   document.getElementById('loginBtnTxt').textContent = 'Signing in…';
   try {
-    var { data, error } = await client.functions.invoke('is-login', {
-      body: { full_name: name, pin: pin, role: loginPickedRole, class_name: className }
-    });
+    var { data, error } = await client.auth.signInWithPassword({ email: email, password: password });
     if (error) throw error;
-    if (data && data.error) throw new Error(data.error);
-    var { error: sessErr } = await client.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
-    if (sessErr) throw sessErr;
-    await onAuthed(data.session, data.profile);
+    await onAuthed(data.session);
   } catch (err) {
-    showAuthErr((err && err.message) || 'Incorrect name, role, or PIN.');
+    showAuthErr(err.message || 'Could not log in.');
   } finally {
     document.getElementById('loginSpin').classList.remove('show');
     document.getElementById('loginBtnTxt').textContent = 'Sign In →';
