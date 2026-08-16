@@ -500,14 +500,47 @@ textarea{resize:vertical}
     <!-- ===== FACILITATOR: SAVED PLANS ===== -->
     <div class="page" id="page-plans">
       <div class="pg-title">Saved Lesson Plans</div>
-      <div class="pg-sub">Reopen, edit, export or delete plans you've generated.</div>
-      <div class="card">
-        <div class="fg">
-          <div class="fg1"><label>Curriculum</label><select id="plFilterCurriculum" onchange="loadSavedPlans()"><option value="">All</option></select></div>
-          <div class="fg1"><label>Status</label><select id="plFilterStatus" onchange="loadSavedPlans()"><option value="">All</option><option value="draft">Draft</option><option value="final">Final</option></select></div>
-        </div>
+      <div class="pg-sub">Reopen, edit, export or delete plans you've generated, mark lessons implemented, and track outcomes.</div>
+
+      <div class="tabs">
+        <div class="tab on" onclick="switchInnerTab('pl',this,'list')">💾 Saved Plans</div>
+        <div class="tab" onclick="switchInnerTab('pl',this,'implement')">✅ Mark Implemented</div>
+        <div class="tab" onclick="switchInnerTab('pl',this,'outcomes')">🎯 Track Outcomes</div>
       </div>
-      <div class="card"><div id="savedPlansList"><div class="empty">No saved plans yet.</div></div></div>
+
+      <div class="tab-pane on" id="pl-list">
+        <div class="card">
+          <div class="fg">
+            <div class="fg1"><label>Curriculum</label><select id="plFilterCurriculum" onchange="loadSavedPlans()"><option value="">All</option></select></div>
+            <div class="fg1"><label>Status</label><select id="plFilterStatus" onchange="loadSavedPlans()"><option value="">All</option><option value="draft">Draft</option><option value="final">Final</option></select></div>
+          </div>
+        </div>
+        <div class="card"><div id="savedPlansList"><div class="empty">No saved plans yet.</div></div></div>
+      </div>
+
+      <div class="tab-pane" id="pl-implement">
+        <div class="card">
+          <div class="card-t"><div class="ci">✅</div>Mark a Lesson Implemented</div>
+          <div class="fg">
+            <div class="fg1"><label>Lesson</label><select id="miPlanSelect"></select></div>
+            <div class="fg1"><label>Class / Grade</label><input id="miClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
+          </div>
+          <button class="btn btn-p btn-sm" onclick="markPlanImplemented()">✅ Mark as Implemented</button>
+        </div>
+        <div class="card"><div id="miList"><div class="empty">No implemented lessons yet.</div></div></div>
+      </div>
+
+      <div class="tab-pane" id="pl-outcomes">
+        <div class="card">
+          <div class="card-t"><div class="ci">🎯</div>Track Outcomes</div>
+          <div class="fg">
+            <div class="fg1"><label>Lesson</label><select id="toPlanSelect"></select></div>
+            <div class="fg1"><label>Class / Grade</label><input id="toClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
+          </div>
+          <button class="btn btn-p btn-sm" onclick="loadOutcomeTrackingStudents()">🔍 Load Students</button>
+        </div>
+        <div class="card"><div id="toStudentsList"><div class="empty">Select a lesson and class, then load students.</div></div></div>
+      </div>
     </div>
 
     <!-- ===== FACILITATOR: ASSIGNMENTS & TARGETS ===== -->
@@ -953,10 +986,8 @@ async function initRoleUI(){
   sb_.innerHTML = '<div class="sb-lbl">' + label + '</div>' +
     nav.map(function(n){ return '<div class="ni" id="nav-' + n.p + '" onclick="goPage(\'' + n.p + '\')"><span>' + n.ic + '</span>' + n.l + '</div>'; }).join('');
 
-  if (currentUser.role === 'student') {
-    document.getElementById('topPtsPill').style.display = 'inline-block';
-    await refreshHasanatPill();
-  }
+  document.getElementById('topPtsPill').style.display = 'inline-block';
+  await refreshHasanatPill();
 
   if (currentUser.role === 'facilitator' || currentUser.role === 'admin') {
     await loadCurricula();
@@ -979,7 +1010,7 @@ function goPage(id){
   closeMobileNav();
   document.getElementById('mainArea').scrollTop = 0;
 
-  if (id === 'plans') loadSavedPlans();
+  if (id === 'plans') { loadSavedPlans(); loadPlanDropdownsForTabs(); loadImplementedList(); }
   if (id === 'assignments') loadAssignmentsPage();
   if (id === 'students') loadStudentsPage();
   if (id === 'reports') loadReportsPage();
@@ -1016,7 +1047,8 @@ async function refreshHasanatPill(){
   var client = sbClient();
   var { data } = await client.from('is_rewards').select('points').eq('student_id', currentUser.id);
   var total = (data || []).reduce(function(s,r){ return s + (r.points||0); }, 0);
-  document.getElementById('topPtsPill').textContent = '✨ ' + total + ' Hasanat';
+  var label = currentUser.role === 'student' ? 'Hasanat' : 'Coins';
+  document.getElementById('topPtsPill').textContent = '✨ ' + total + ' ' + label;
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1768,6 +1800,179 @@ function exportSavedPlan(id, type){
   else if (type === 'docx') exportDocx(plan);
   else if (type === 'pptx') exportPptx(plan);
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// MARK IMPLEMENTED (Saved Plans tab)
+// ════════════════════════════════════════════════════════════════════════
+var finalPlansCache = [];
+var implementedListCache = [];
+
+async function loadPlanDropdownsForTabs(){
+  var client = sbClient();
+  var { data } = await client.from('is_lesson_plans').select('id,title,chapter_id,learning_outcomes').eq('status', 'final').order('title');
+  finalPlansCache = data || [];
+  var opts = '<option value="">— Select a lesson —</option>' + finalPlansCache.map(function(p){ return '<option value="' + p.id + '">' + esc(p.title) + '</option>'; }).join('');
+  var mi = document.getElementById('miPlanSelect'); if (mi) mi.innerHTML = opts;
+  var to = document.getElementById('toPlanSelect'); if (to) to.innerHTML = opts;
+}
+
+async function markPlanImplemented(){
+  var planId = document.getElementById('miPlanSelect').value;
+  var className = document.getElementById('miClass').value.trim();
+  if (!planId) return alert('Please select a lesson.');
+  if (!className) return alert('Please enter a class/grade.');
+  var client = sbClient();
+  var { data: existing } = await client.from('is_plan_assignments').select('id').eq('lesson_plan_id', planId).eq('class_name', className).maybeSingle();
+  var res;
+  if (existing) {
+    res = await client.from('is_plan_assignments').update({ status: 'implemented', implemented_at: new Date().toISOString() }).eq('id', existing.id);
+  } else {
+    res = await client.from('is_plan_assignments').insert({ lesson_plan_id: planId, class_name: className, status: 'implemented', implemented_at: new Date().toISOString(), created_by: currentUser.id });
+  }
+  if (res.error) return toast('Error: ' + res.error.message, 'err');
+  toast('Marked as implemented.');
+  document.getElementById('miClass').value = '';
+  loadImplementedList();
+}
+
+async function loadImplementedList(){
+  var client = sbClient();
+  var { data } = await client.from('is_plan_assignments').select('*, is_lesson_plans(title)').eq('status', 'implemented').order('implemented_at', {ascending:false});
+  implementedListCache = data || [];
+  var el = document.getElementById('miList');
+  if (!el) return;
+  if (!implementedListCache.length) { el.innerHTML = '<div class="empty">No implemented lessons yet.</div>'; return; }
+  el.innerHTML = implementedListCache.map(function(a){
+    return '<div class="list-item"><div><strong>' + esc((a.is_lesson_plans && a.is_lesson_plans.title) || 'Untitled') + '</strong><br>' +
+      '<span style="font-size:11.5px;color:var(--inkl)">' + esc(a.class_name) + ' · ' + fmtDate(a.implemented_at) + '</span></div>' +
+      '<span class="pill pill-final">implemented</span></div>';
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// TRACK OUTCOMES (Saved Plans tab)
+// ════════════════════════════════════════════════════════════════════════
+var toStudentsCache = [];
+var toOutcomesCache = [];
+var toOpen = {};
+var toState = {};
+
+async function loadOutcomeTrackingStudents(){
+  var planId = document.getElementById('toPlanSelect').value;
+  var className = document.getElementById('toClass').value.trim();
+  if (!planId) return alert('Please select a lesson.');
+  if (!className) return alert('Please enter a class/grade.');
+
+  var plan = finalPlansCache.find(function(p){ return p.id === planId; });
+  var client = sbClient();
+  var el = document.getElementById('toStudentsList');
+  el.innerHTML = '<div class="empty">Loading…</div>';
+
+  var outcomes = plan.learning_outcomes || [];
+  if (plan.chapter_id) {
+    var { data: ch } = await client.from('is_curriculum_chapters').select('learning_outcomes').eq('id', plan.chapter_id).maybeSingle();
+    if (ch && ch.learning_outcomes && ch.learning_outcomes.length) outcomes = ch.learning_outcomes;
+  }
+  toOutcomesCache = outcomes;
+
+  var { data: students } = await client.from('is_profiles').select('id,full_name').eq('role', 'student').eq('class_name', className).order('full_name');
+  toStudentsCache = students || [];
+  toOpen = {}; toState = {};
+
+  if (!toStudentsCache.length) { el.innerHTML = '<div class="empty">No students found in class "' + esc(className) + '".</div>'; return; }
+  if (!outcomes.length) { el.innerHTML = '<div class="empty">This lesson\'s chapter has no recorded learning outcomes.</div>'; return; }
+
+  var { data: existingTracking } = await client.from('is_outcome_tracking').select('*').eq('lesson_plan_id', planId).in('student_id', toStudentsCache.map(function(s){return s.id;}));
+  (existingTracking || []).forEach(function(row){
+    toState[row.student_id] = toState[row.student_id] || {};
+    var idx = outcomes.indexOf(row.learning_outcome);
+    if (idx >= 0) toState[row.student_id][idx] = row.achieved;
+  });
+
+  renderOutcomeStudentsList(planId);
+}
+
+function renderOutcomeStudentsList(planId){
+  var el = document.getElementById('toStudentsList');
+  el.innerHTML = toStudentsCache.map(function(stu){
+    var stState = toState[stu.id] || {};
+    var achievedCount = Object.keys(stState).filter(function(k){ return stState[k] === true; }).length;
+    return '<div class="list-item" style="flex-direction:column;align-items:stretch">' +
+      '<div class="clickable" style="display:flex;justify-content:space-between;align-items:center" onclick="toggleStudentOutcomes(\'' + planId + '\',\'' + stu.id + '\')">' +
+      '<strong>' + esc(stu.full_name || 'Unnamed') + '</strong>' +
+      '<span style="font-size:11px;color:var(--inkl)">' + achievedCount + '/' + toOutcomesCache.length + ' achieved</span></div>' +
+      '<div id="toDetail-' + stu.id + '"></div></div>';
+  }).join('');
+  toStudentsCache.forEach(function(stu){ if (toOpen[stu.id]) renderStudentOutcomeDetail(planId, stu.id); });
+}
+
+function toggleStudentOutcomes(planId, studentId){
+  toOpen[studentId] = !toOpen[studentId];
+  if (!toOpen[studentId]) { document.getElementById('toDetail-' + studentId).innerHTML = ''; return; }
+  renderStudentOutcomeDetail(planId, studentId);
+}
+
+function renderStudentOutcomeDetail(planId, studentId){
+  var el = document.getElementById('toDetail-' + studentId);
+  toState[studentId] = toState[studentId] || {};
+  el.innerHTML = '<div class="sec-block" style="margin-top:8px">' +
+    toOutcomesCache.map(function(o, i){
+      var st = toState[studentId][i];
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap">' +
+        '<span style="font-size:12.5px;flex:1;min-width:150px">' + esc(o) + '</span>' +
+        '<div class="btn-row" style="margin-top:0">' +
+        '<button type="button" class="btn btn-sm ' + (st === true ? 'btn-p' : 'btn-s') + '" onclick="setOutcomeAchievement(\'' + planId + '\',\'' + studentId + '\',' + i + ',true)">✅ Achieved</button>' +
+        '<button type="button" class="btn btn-sm ' + (st === false ? 'btn-d' : 'btn-s') + '" onclick="setOutcomeAchievement(\'' + planId + '\',\'' + studentId + '\',' + i + ',false)">❌ Not Achieved</button>' +
+        '</div></div>';
+    }).join('') +
+    '<button class="btn btn-p btn-sm" style="margin-top:6px" onclick="saveOutcomeForStudent(\'' + planId + '\',\'' + studentId + '\')">💾 Save</button></div>';
+}
+
+function setOutcomeAchievement(planId, studentId, outcomeIdx, achieved){
+  toState[studentId] = toState[studentId] || {};
+  toState[studentId][outcomeIdx] = achieved;
+  renderStudentOutcomeDetail(planId, studentId);
+}
+
+async function saveOutcomeForStudent(planId, studentId){
+  var client = sbClient();
+  var stu = toStudentsCache.find(function(s){ return s.id === studentId; });
+  var stState = toState[studentId] || {};
+  var rows = toOutcomesCache.map(function(o, i){
+    return { student_id: studentId, lesson_plan_id: planId, learning_outcome: o, achieved: !!stState[i], marked_by: currentUser.id, marked_at: new Date().toISOString() };
+  }).filter(function(r, i){ return stState[i] !== undefined; });
+
+  if (!rows.length) return toast('Mark at least one outcome first.', 'err');
+
+  var { error } = await client.from('is_outcome_tracking').upsert(rows, { onConflict: 'student_id,lesson_plan_id,learning_outcome' });
+  if (error) return toast('Error: ' + error.message, 'err');
+
+  var achievedRows = rows.filter(function(r){ return r.achieved; });
+  var notAchievedRows = rows.filter(function(r){ return !r.achieved; });
+
+  // Not achieved -> auto-create a target (goal) for the student if one isn't already active for that outcome
+  for (var i = 0; i < notAchievedRows.length; i++) {
+    var r = notAchievedRows[i];
+    var { data: existingGoal } = await client.from('is_student_goals').select('id').eq('student_id', studentId).eq('learning_outcome', r.learning_outcome).eq('status', 'active').maybeSingle();
+    if (!existingGoal) {
+      await client.from('is_student_goals').insert({ student_id: studentId, lesson_plan_id: planId, learning_outcome: r.learning_outcome, goal_text: 'Work on: ' + r.learning_outcome, status: 'active' });
+    }
+  }
+
+  // Achieved -> resolve any matching active target for this outcome, then award coins
+  for (var j = 0; j < achievedRows.length; j++) {
+    await client.from('is_student_goals').update({ status: 'achieved', achieved_at: new Date().toISOString() })
+      .eq('student_id', studentId).eq('learning_outcome', achievedRows[j].learning_outcome).eq('status', 'active');
+  }
+  if (achievedRows.length) {
+    await client.from('is_rewards').insert({ student_id: studentId, definition_id: null, title: 'Outcome Achieved', description: achievedRows.length + ' learning outcome(s) achieved', icon: '🎯', points: achievedRows.length * 5, awarded_by: currentUser.id });
+    await client.from('is_rewards').insert({ student_id: currentUser.id, definition_id: null, title: 'Facilitated Achievement', description: 'Helped ' + (stu ? stu.full_name : 'a student') + ' achieve ' + achievedRows.length + ' outcome(s)', icon: '🏅', points: achievedRows.length * 2, awarded_by: null });
+    await refreshHasanatPill();
+  }
+
+  toast('Outcomes saved for ' + (stu ? stu.full_name : 'student') + '.');
+  renderOutcomeStudentsList(planId);
+}
 async function openPlan(id){
   var client = sbClient();
   var { data, error } = await client.from('is_lesson_plans').select('*').eq('id', id).single();
@@ -1891,22 +2096,23 @@ function renderAssignmentsList(){
     var planTitle = (a.is_lesson_plans && a.is_lesson_plans.title) || 'Untitled plan';
     var lahSection = a.is_lesson_plans && findLearningAtHomeSection(a.is_lesson_plans.generated_sections);
     var statusPill = a.status === 'implemented' ? 'pill-final' : a.status === 'missed' ? 'pill-missed' : 'pill-active';
-    var achieved = 0, total = 0;
-    (a.outcomes_achieved||[]).forEach(function(stuRow){ (stuRow.outcomes||[]).forEach(function(o){ total++; if (o.achieved) achieved++; }); });
+    var submitted = (a.submissions||[]).filter(function(s){ return s.submitted; }).length;
+    var totalSub = (a.submissions||[]).length;
     return '<div class="list-item" style="flex-direction:column;align-items:stretch">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
       '<div><strong>' + esc(planTitle) + '</strong><br><span style="font-size:11.5px;color:var(--inkl)">' + esc(a.class_name) + (a.due_date ? ' · Due ' + fmtDate(a.due_date) : '') + '</span>' +
-      (a.status === 'implemented' && total ? '<br><span style="font-size:11px;color:var(--g);font-weight:700">✅ ' + achieved + '/' + total + ' outcomes achieved</span>' : '') + '</div>' +
+      (totalSub ? '<br><span style="font-size:11px;color:var(--g);font-weight:700">👥 ' + submitted + '/' + totalSub + ' submitted</span>' : '') + '</div>' +
       '<div style="text-align:right"><span class="pill ' + statusPill + '">' + a.status + '</span>' +
       '<div class="btn-row">' +
-      (a.status === 'assigned' ? '<button class="btn btn-p btn-sm" onclick="toggleImplementForm(\'' + a.id + '\')">✅ Mark Implemented</button><button class="btn btn-s btn-sm" onclick="markAssignmentMissed(\'' + a.id + '\')">🚫 Missed</button>' : '') +
+      '<button class="btn btn-p btn-sm" onclick="toggleSubmissionForm(\'' + a.id + '\')">👥 Track Submissions</button>' +
+      (a.status === 'assigned' ? '<button class="btn btn-s btn-sm" onclick="markAssignmentMissed(\'' + a.id + '\')">🚫 Missed</button>' : '') +
       '<button class="btn btn-d btn-sm" onclick="deleteAssignment(\'' + a.id + '\')">🗑</button></div></div></div>' +
       (lahSection ? '<div class="sec-block" style="margin-top:8px"><div class="sec-lbl">🏠 ' + esc(lahSection.label) + '</div><p style="margin-top:6px;white-space:pre-wrap;font-size:12.5px">' + esc(lahSection.text) + '</p></div>' : '') +
       '<div id="implForm-' + a.id + '"></div></div>';
   }).join('');
 }
 
-async function toggleImplementForm(id){
+async function toggleSubmissionForm(id){
   if (implOpen[id]) { implOpen[id] = false; document.getElementById('implForm-' + id).innerHTML = ''; return; }
   implOpen[id] = true;
   var el = document.getElementById('implForm-' + id);
@@ -1915,78 +2121,55 @@ async function toggleImplementForm(id){
   var a = assignmentsCache.find(function(x){ return x.id === id; });
   if (!implStudentsCache[id]) {
     var { data: students } = await sbClient().from('is_profiles').select('id,full_name').eq('role', 'student').eq('class_name', a.class_name).order('full_name');
-    implStudentsCache[id] = (students && students.length) ? students : [{ id: '_whole_class', full_name: 'Whole Class (no matching students found for "' + a.class_name + '")' }];
+    implStudentsCache[id] = students || [];
   }
   if (!implState[id]) {
     implState[id] = {};
-    (a.outcomes_achieved || []).forEach(function(row){
-      implState[id][row.student_id] = {};
-      (row.outcomes || []).forEach(function(o, i){ implState[id][row.student_id][i] = o.achieved; });
-    });
+    (a.submissions || []).forEach(function(row){ implState[id][row.student_id] = row.submitted; });
   }
-  renderImplementForm(id);
+  renderSubmissionForm(id);
 }
 
-function setImplOutcome(id, studentId, outcomeIdx, achieved){
+function setSubmission(id, studentId, submitted){
   implState[id] = implState[id] || {};
-  implState[id][studentId] = implState[id][studentId] || {};
-  implState[id][studentId][outcomeIdx] = achieved;
-  renderImplementForm(id);
+  implState[id][studentId] = submitted;
+  renderSubmissionForm(id);
 }
 
-function renderImplementForm(id){
+function renderSubmissionForm(id){
   var el = document.getElementById('implForm-' + id);
-  var a = assignmentsCache.find(function(x){ return x.id === id; });
-  var outcomes = (a && a.is_lesson_plans && a.is_lesson_plans.learning_outcomes) || [];
   var students = implStudentsCache[id] || [];
-  var existingNotes = document.getElementById('implNotes-' + id) ? document.getElementById('implNotes-' + id).value : (a.notes || '');
+  var a = assignmentsCache.find(function(x){ return x.id === id; });
 
-  if (!outcomes.length) {
-    el.innerHTML = '<div class="sec-block" style="margin-top:10px"><p class="hint">This plan has no recorded learning outcomes to track.</p>' +
-      '<div class="fg1" style="margin-top:8px"><label>Notes (optional)</label><textarea id="implNotes-' + id + '" rows="2">' + esc(existingNotes) + '</textarea></div>' +
-      '<button class="btn btn-p btn-sm" onclick="submitImplementation(\'' + id + '\')">💾 Save Implementation</button></div>';
+  if (!students.length) {
+    el.innerHTML = '<div class="sec-block" style="margin-top:10px"><p class="hint">No students found in class "' + esc(a.class_name) + '" yet.</p></div>';
     return;
   }
-
-  el.innerHTML = '<div class="sec-block" style="margin-top:10px">' +
-    '<label>Mark each student\'s achievement for every learning outcome</label>' +
+  el.innerHTML = '<div class="sec-block" style="margin-top:10px"><label>Who submitted this Learning at Home task?</label>' +
     students.map(function(stu){
-      return '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bdr)">' +
-        '<div style="font-weight:800;font-size:12.5px;color:var(--ink);margin-bottom:6px">' + esc(stu.full_name || 'Unnamed') + '</div>' +
-        outcomes.map(function(o, i){
-          var st = implState[id][stu.id] && implState[id][stu.id][i];
-          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap">' +
-            '<span style="font-size:12.5px;flex:1;min-width:150px">' + esc(o) + '</span>' +
-            '<div class="btn-row" style="margin-top:0">' +
-            '<button type="button" class="btn btn-sm ' + (st === true ? 'btn-p' : 'btn-s') + '" onclick="setImplOutcome(\'' + id + '\',\'' + stu.id + '\',' + i + ',true)">✅ Achieved</button>' +
-            '<button type="button" class="btn btn-sm ' + (st === false ? 'btn-d' : 'btn-s') + '" onclick="setImplOutcome(\'' + id + '\',\'' + stu.id + '\',' + i + ',false)">❌ Not Achieved</button>' +
-            '</div></div>';
-        }).join('') +
-        '</div>';
+      var st = implState[id][stu.id];
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px">' +
+        '<span style="font-size:12.5px;font-weight:700">' + esc(stu.full_name || 'Unnamed') + '</span>' +
+        '<div class="btn-row" style="margin-top:0">' +
+        '<button type="button" class="btn btn-sm ' + (st === true ? 'btn-p' : 'btn-s') + '" onclick="setSubmission(\'' + id + '\',\'' + stu.id + '\',true)">✅ Submitted</button>' +
+        '<button type="button" class="btn btn-sm ' + (st === false ? 'btn-d' : 'btn-s') + '" onclick="setSubmission(\'' + id + '\',\'' + stu.id + '\',false)">⏳ Not Submitted</button>' +
+        '</div></div>';
     }).join('') +
-    '<div class="fg1" style="margin-top:10px"><label>Notes (optional)</label><textarea id="implNotes-' + id + '" rows="2">' + esc(existingNotes) + '</textarea></div>' +
-    '<button class="btn btn-p btn-sm" style="margin-top:8px" onclick="submitImplementation(\'' + id + '\')">💾 Save Implementation</button></div>';
+    '<button class="btn btn-p btn-sm" style="margin-top:10px" onclick="saveSubmissions(\'' + id + '\')">💾 Save Submissions</button></div>';
 }
 
-async function submitImplementation(id){
-  var a = assignmentsCache.find(function(x){ return x.id === id; });
-  var outcomes = (a && a.is_lesson_plans && a.is_lesson_plans.learning_outcomes) || [];
+async function saveSubmissions(id){
   var students = implStudentsCache[id] || [];
-  var notesEl = document.getElementById('implNotes-' + id);
-  var outcomesAchieved = students.map(function(stu){
-    return {
-      student_id: stu.id, student_name: stu.full_name,
-      outcomes: outcomes.map(function(o, i){ return { outcome: o, achieved: !!(implState[id][stu.id] && implState[id][stu.id][i]) }; })
-    };
+  var submissions = students.map(function(stu){
+    return { student_id: stu.id, student_name: stu.full_name, submitted: !!implState[id][stu.id], submitted_at: implState[id][stu.id] ? new Date().toISOString() : null };
   });
-  var { error } = await sbClient().from('is_plan_assignments').update({
-    status: 'implemented', implemented_at: new Date().toISOString(), outcomes_achieved: outcomesAchieved, notes: notesEl ? notesEl.value.trim() : ''
-  }).eq('id', id);
+  var { error } = await sbClient().from('is_plan_assignments').update({ submissions: submissions }).eq('id', id);
   if (error) return toast('Error: ' + error.message, 'err');
-  toast('Marked as implemented.');
+  toast('Submissions saved.');
   delete implOpen[id]; delete implState[id]; delete implStudentsCache[id];
   loadAssignmentsPage();
 }
+
 async function markAssignmentMissed(id){
   await sbClient().from('is_plan_assignments').update({ status: 'missed' }).eq('id', id);
   toast('Marked as missed.');
@@ -2198,9 +2381,14 @@ async function openStudentDetail(id){
     '<div class="mc"><div class="mc-l">Reflections</div><div class="mc-v">' + refl.length + '</div></div>' +
     '<div class="mc"><div class="mc-l">Hasanat</div><div class="mc-v">' + points + '</div></div></div>';
 
-  html += '<div class="divider"></div><label>🎯 Goals</label>' + (goals.length ? goals.map(function(g){
+  html += '<div class="divider"></div><label>🎯 Goals / Targets</label>' + (goals.length ? goals.map(function(g){
     return '<div class="list-item"><div>' + esc(g.goal_text) + '<br><span style="font-size:11px;color:var(--inkl)">' + esc(g.learning_outcome||'') + '</span></div><span class="pill pill-' + g.status + '">' + g.status + '</span></div>';
   }).join('') : '<div class="empty">No goals yet.</div>');
+
+  html += '<div class="divider"></div><label>🎯 Set a Target for This Student</label>' +
+    '<div class="fg1"><label>Target / Goal</label><input id="tgtGoalText" placeholder="e.g. Memorize Surah Al-Fatiha by next month"></div>' +
+    '<div class="fg1"><label>Related Learning Outcome (optional)</label><input id="tgtGoalOutcome" placeholder="e.g. Know the pillars of Salah"></div>' +
+    '<button class="btn btn-p btn-sm" onclick="facilitatorAddTarget(\'' + id + '\')">🎯 Set Target</button>';
 
   html += '<div class="divider"></div><label>📝 Reflections</label>' + (refl.length ? refl.map(function(r){
     return '<div class="list-item"><div>' + nl2br(r.reflection_text) + '<br><span style="font-size:11px;color:var(--inkl)">' + esc(r.author_role) + ' · ' + fmtDate(r.created_at) + '</span></div></div>';
@@ -2222,6 +2410,16 @@ async function openStudentDetail(id){
     '<button class="btn btn-g btn-sm" onclick="awardCustomBadge(\'' + id + '\')">🏅 Award Badge</button>';
 
   document.getElementById('studentDetail').innerHTML = html;
+}
+async function facilitatorAddTarget(studentId){
+  var goalText = document.getElementById('tgtGoalText').value.trim();
+  var outcome = document.getElementById('tgtGoalOutcome').value.trim();
+  if (!goalText) return alert('Please describe the target.');
+  var client = sbClient();
+  var { error } = await client.from('is_student_goals').insert({ student_id: studentId, lesson_plan_id: null, learning_outcome: outcome, goal_text: goalText, status: 'active' });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Target set for student.');
+  openStudentDetail(studentId);
 }
 async function facilitatorAddReflection(studentId){
   var text = document.getElementById('facReflText').value.trim();
@@ -2404,17 +2602,46 @@ async function submitReflection(lessonPlanId){
 // ════════════════════════════════════════════════════════════════════════
 async function loadMyGoals(){
   var client = sbClient();
-  var { data, error } = await client.from('is_student_goals').select('*').eq('student_id', currentUser.id).order('created_at', {ascending:false});
-  if (error) { toast('Error: ' + error.message, 'err'); return; }
-  myGoalsCache = data || [];
-  var el = document.getElementById('myGoalsList');
-  if (!myGoalsCache.length) { el.innerHTML = '<div class="empty">No goals yet — open a lesson to set your first one.</div>'; return; }
-  el.innerHTML = myGoalsCache.map(function(g){
-    return '<div class="list-item"><div>' + esc(g.goal_text) + (g.learning_outcome ? ('<br><span style="font-size:11px;color:var(--inkl)">' + esc(g.learning_outcome) + '</span>') : '') +
-      (g.target_date ? ('<br><span style="font-size:11px;color:var(--inkl)">Target: ' + fmtDate(g.target_date) + '</span>') : '') + '</div>' +
-      '<div style="text-align:right"><span class="pill pill-' + g.status + '">' + g.status + '</span>' +
-      (g.status === 'active' ? '<div class="btn-row"><button class="btn btn-p btn-sm" onclick="markGoalAchieved(\'' + g.id + '\')">✅ Mark Achieved</button></div>' : '') + '</div></div>';
-  }).join('');
+  var [goalsRes, outcomesRes] = await Promise.all([
+    client.from('is_student_goals').select('*').eq('student_id', currentUser.id).order('created_at', {ascending:false}),
+    client.from('is_outcome_tracking').select('*').eq('student_id', currentUser.id).order('marked_at', {ascending:false})
+  ]);
+  if (goalsRes.error) { toast('Error: ' + goalsRes.error.message, 'err'); return; }
+  myGoalsCache = goalsRes.data || [];
+  var outcomes = outcomesRes.data || [];
+  var achieved = outcomes.filter(function(o){ return o.achieved; });
+  var notAchieved = outcomes.filter(function(o){ return !o.achieved; });
+
+  var addForm = '<div class="card"><div class="card-t"><div class="ci">➕</div>Add a Target</div>' +
+    '<div class="fg1"><label>Target</label><input id="myTgtText" placeholder="e.g. Pray all 5 salah on time this week"></div>' +
+    '<div class="fg1"><label>Related Learning Outcome (optional)</label><input id="myTgtOutcome" placeholder="e.g. Know the pillars of Salah"></div>' +
+    '<button class="btn btn-p btn-sm" onclick="addMyTarget()">🎯 Set Target</button></div>';
+
+  var targetsHtml = '<div class="card"><div class="card-t"><div class="ci">🎯</div>My Targets</div>' +
+    (myGoalsCache.length ? myGoalsCache.map(function(g){
+      return '<div class="list-item"><div>' + esc(g.goal_text) + (g.learning_outcome ? ('<br><span style="font-size:11px;color:var(--inkl)">' + esc(g.learning_outcome) + '</span>') : '') +
+        (g.target_date ? ('<br><span style="font-size:11px;color:var(--inkl)">Target: ' + fmtDate(g.target_date) + '</span>') : '') + '</div>' +
+        '<div style="text-align:right"><span class="pill pill-' + g.status + '">' + g.status + '</span>' +
+        (g.status === 'active' ? '<div class="btn-row"><button class="btn btn-p btn-sm" onclick="markGoalAchieved(\'' + g.id + '\')">✅ Mark Achieved</button></div>' : '') + '</div></div>';
+    }).join('') : '<div class="empty">No targets yet.</div>') + '</div>';
+
+  var achievedHtml = '<div class="card"><div class="card-t"><div class="ci">✅</div>Outcomes Achieved</div>' +
+    (achieved.length ? achieved.map(function(o){ return '<div class="list-item"><div>' + esc(o.learning_outcome) + '</div><span class="pill pill-final">achieved</span></div>'; }).join('') : '<div class="empty">None recorded yet.</div>') + '</div>';
+
+  var notAchievedHtml = '<div class="card"><div class="card-t"><div class="ci">❌</div>Outcomes Not Yet Achieved</div>' +
+    (notAchieved.length ? notAchieved.map(function(o){ return '<div class="list-item"><div>' + esc(o.learning_outcome) + '</div><span class="pill pill-missed">not achieved</span></div>'; }).join('') : '<div class="empty">None recorded yet.</div>') + '</div>';
+
+  document.getElementById('myGoalsList').innerHTML = addForm + targetsHtml + achievedHtml + notAchievedHtml;
+}
+async function addMyTarget(){
+  var text = document.getElementById('myTgtText').value.trim();
+  var outcome = document.getElementById('myTgtOutcome').value.trim();
+  if (!text) return alert('Please describe your target.');
+  var client = sbClient();
+  var { error } = await client.from('is_student_goals').insert({ student_id: currentUser.id, lesson_plan_id: null, learning_outcome: outcome, goal_text: text, status: 'active' });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Target set — may Allah make it easy.');
+  loadMyGoals();
 }
 async function markGoalAchieved(id){
   var client = sbClient();
