@@ -2474,22 +2474,36 @@ async function generateReport(){
   var gq = client.from('is_student_goals').select('*').eq('student_id', studentId).order('created_at');
   var rq = client.from('is_reflections').select('*').eq('student_id', studentId).order('created_at');
   var wq = client.from('is_rewards').select('*').eq('student_id', studentId).order('awarded_at');
-  if (from) { gq = gq.gte('created_at', from); rq = rq.gte('created_at', from); wq = wq.gte('awarded_at', from); }
-  if (to) { gq = gq.lte('created_at', to+'T23:59:59'); rq = rq.lte('created_at', to+'T23:59:59'); wq = wq.lte('awarded_at', to+'T23:59:59'); }
+  var oq = client.from('is_outcome_tracking').select('*, is_lesson_plans(title,chapter_name)').eq('student_id', studentId).order('marked_at');
+  if (from) { gq = gq.gte('created_at', from); rq = rq.gte('created_at', from); wq = wq.gte('awarded_at', from); oq = oq.gte('marked_at', from); }
+  if (to) { gq = gq.lte('created_at', to+'T23:59:59'); rq = rq.lte('created_at', to+'T23:59:59'); wq = wq.lte('awarded_at', to+'T23:59:59'); oq = oq.lte('marked_at', to+'T23:59:59'); }
 
-  var [gRes, rRes, wRes] = await Promise.all([gq, rq, wq]);
-  var goals = gRes.data || [], refl = rRes.data || [], rewards = wRes.data || [];
+  var [gRes, rRes, wRes, oRes] = await Promise.all([gq, rq, wq, oq]);
+  var goals = gRes.data || [], refl = rRes.data || [], rewards = wRes.data || [], outcomes = oRes.data || [];
   var achieved = goals.filter(function(g){ return g.status === 'achieved'; });
+  var outcomesAchieved = outcomes.filter(function(o){ return o.achieved; });
+  var outcomesNotAchieved = outcomes.filter(function(o){ return !o.achieved; });
   var points = rewards.reduce(function(sum,r){ return sum + (r.points||0); }, 0);
 
-  lastReportData = { student: s, goals: goals, achieved: achieved, reflections: refl, rewards: rewards, points: points, from: from, to: to };
+  lastReportData = { student: s, goals: goals, achieved: achieved, reflections: refl, rewards: rewards, points: points, outcomes: outcomes, outcomesAchieved: outcomesAchieved, outcomesNotAchieved: outcomesNotAchieved, from: from, to: to };
 
   var html = '<div class="card"><div class="metrics">' +
+    '<div class="mc"><div class="mc-l">Outcomes Achieved</div><div class="mc-v">' + outcomesAchieved.length + '</div></div>' +
     '<div class="mc"><div class="mc-l">Goals Set</div><div class="mc-v">' + goals.length + '</div></div>' +
     '<div class="mc"><div class="mc-l">Goals Achieved</div><div class="mc-v">' + achieved.length + '</div></div>' +
     '<div class="mc"><div class="mc-l">Reflections</div><div class="mc-v">' + refl.length + '</div></div>' +
     '<div class="mc"><div class="mc-l">Hasanat Earned</div><div class="mc-v">' + points + '</div></div></div>' +
     '<div class="btn-row"><button class="btn btn-s" onclick="exportReportDocx()">📄 Export Word</button><button class="btn btn-s" onclick="exportReportPDF()">🖨️ Export PDF</button></div></div>';
+
+  html += '<div class="card"><div class="card-t"><div class="ci">✅</div>Outcomes Achieved</div>' + (outcomesAchieved.length ? outcomesAchieved.map(function(o){
+    var planTitle = o.is_lesson_plans ? (o.is_lesson_plans.chapter_name || o.is_lesson_plans.title) : '';
+    return '<div class="list-item"><div>' + esc(o.learning_outcome) + (planTitle ? ('<br><span style="font-size:11px;color:var(--inkl)">' + esc(planTitle) + ' · ' + fmtDate(o.marked_at) + '</span>') : '<br><span style="font-size:11px;color:var(--inkl)">' + fmtDate(o.marked_at) + '</span>') + '</div><span class="pill pill-final">achieved</span></div>';
+  }).join('') : '<div class="empty">No outcomes achieved in this period.</div>') + '</div>';
+
+  html += '<div class="card"><div class="card-t"><div class="ci">❌</div>Outcomes Not Yet Achieved</div>' + (outcomesNotAchieved.length ? outcomesNotAchieved.map(function(o){
+    var planTitle = o.is_lesson_plans ? (o.is_lesson_plans.chapter_name || o.is_lesson_plans.title) : '';
+    return '<div class="list-item"><div>' + esc(o.learning_outcome) + (planTitle ? ('<br><span style="font-size:11px;color:var(--inkl)">' + esc(planTitle) + ' · ' + fmtDate(o.marked_at) + '</span>') : '<br><span style="font-size:11px;color:var(--inkl)">' + fmtDate(o.marked_at) + '</span>') + '</div><span class="pill pill-missed">not achieved</span></div>';
+  }).join('') : '<div class="empty">None recorded in this period.</div>') + '</div>';
 
   html += '<div class="card"><div class="card-t"><div class="ci">🎯</div>Goals</div>' + (goals.length ? goals.map(function(g){
     return '<div class="list-item"><div>' + esc(g.goal_text) + '<br><span style="font-size:11px;color:var(--inkl)">' + esc(g.learning_outcome||'') + ' · ' + fmtDate(g.created_at) + '</span></div><span class="pill pill-' + g.status + '">' + g.status + '</span></div>';
@@ -2509,7 +2523,9 @@ function exportReportPDF(){
   if (!lastReportData) return;
   var d = lastReportData;
   var html = '<h1>Achievement &amp; Reflection Report</h1><div class="pmeta">' + esc(d.student.full_name||d.student.email) + (d.from||d.to ? (' · ' + (d.from||'—') + ' to ' + (d.to||'—')) : '') + '</div>' +
-    '<div class="psec"><h3>Summary</h3><p>Goals set: ' + d.goals.length + ' | Achieved: ' + d.achieved.length + ' | Reflections: ' + d.reflections.length + ' | Hasanat: ' + d.points + '</p></div>' +
+    '<div class="psec"><h3>Summary</h3><p>Outcomes achieved: ' + d.outcomesAchieved.length + ' | Goals set: ' + d.goals.length + ' | Achieved: ' + d.achieved.length + ' | Reflections: ' + d.reflections.length + ' | Hasanat: ' + d.points + '</p></div>' +
+    '<div class="psec"><h3>Outcomes Achieved</h3><p>' + (d.outcomesAchieved.map(function(o){ return '• ' + esc(o.learning_outcome) + ' (' + fmtDate(o.marked_at) + ')'; }).join('\n')||'None') + '</p></div>' +
+    '<div class="psec"><h3>Outcomes Not Yet Achieved</h3><p>' + (d.outcomesNotAchieved.map(function(o){ return '• ' + esc(o.learning_outcome); }).join('\n')||'None') + '</p></div>' +
     '<div class="psec"><h3>Goals</h3><p>' + (d.goals.map(function(g){ return '• [' + g.status + '] ' + esc(g.goal_text); }).join('\n')||'None') + '</p></div>' +
     '<div class="psec"><h3>Reflections</h3><p>' + (d.reflections.map(function(r){ return '• (' + r.author_role + ', ' + fmtDate(r.created_at) + ') ' + esc(r.reflection_text); }).join('\n')||'None') + '</p></div>' +
     '<div class="psec"><h3>Rewards</h3><p>' + (d.rewards.map(function(r){ return r.icon + ' ' + esc(r.title); }).join('\n')||'None') + '</p></div>';
@@ -2524,9 +2540,13 @@ async function exportReportDocx(){
     var children = [
       new D.Paragraph({ spacing:{after:60}, children:[ new D.TextRun({ text:'Achievement & Reflection Report', bold:true, size:36, color:'1A1A2E' }) ] }),
       new D.Paragraph({ spacing:{after:240}, children:[ new D.TextRun({ text:(d.student.full_name||d.student.email) + (d.from||d.to ? (' — ' + (d.from||'—') + ' to ' + (d.to||'—')) : ''), italics:true, color:'6B6258' }) ] }),
-      new D.Paragraph({ spacing:{after:200}, children:[ new D.TextRun({ text:'Goals set: ' + d.goals.length + '   Achieved: ' + d.achieved.length + '   Reflections: ' + d.reflections.length + '   Hasanat: ' + d.points, bold:true }) ] })
+      new D.Paragraph({ spacing:{after:200}, children:[ new D.TextRun({ text:'Outcomes achieved: ' + d.outcomesAchieved.length + '   Goals set: ' + d.goals.length + '   Achieved: ' + d.achieved.length + '   Reflections: ' + d.reflections.length + '   Hasanat: ' + d.points, bold:true }) ] })
     ];
     function heading(t){ children.push(new D.Paragraph({ spacing:{before:200,after:80}, children:[ new D.TextRun({ text:t, bold:true, size:26, color:'5B8C3E' }) ] })); }
+    heading('Outcomes Achieved');
+    (d.outcomesAchieved.length ? d.outcomesAchieved : [{learning_outcome:'None', marked_at:null}]).forEach(function(o){ children.push(new D.Paragraph({ text: '• ' + o.learning_outcome + (o.marked_at ? ' (' + fmtDate(o.marked_at) + ')' : '') })); });
+    heading('Outcomes Not Yet Achieved');
+    (d.outcomesNotAchieved.length ? d.outcomesNotAchieved : [{learning_outcome:'None'}]).forEach(function(o){ children.push(new D.Paragraph({ text: '• ' + o.learning_outcome })); });
     heading('Goals');
     (d.goals.length ? d.goals : [{goal_text:'None', status:''}]).forEach(function(g){ children.push(new D.Paragraph({ text: '• [' + g.status + '] ' + g.goal_text })); });
     heading('Reflections');
