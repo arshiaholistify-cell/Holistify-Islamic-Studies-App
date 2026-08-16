@@ -635,7 +635,7 @@ textarea{resize:vertical}
     <!-- ===== STUDENT: MY LESSONS ===== -->
     <div class="page" id="page-my-lessons">
       <div class="pg-title">My Lessons</div>
-      <div class="pg-sub">Lessons shared by your facilitator. Open one to set a goal or add a reflection.</div>
+      <div class="pg-sub">Lessons implemented in your class. Open one to see the learning outcomes, set a goal, or add a reflection.</div>
       <div id="myLessonsList"><div class="empty">No lessons yet.</div></div>
       <div id="lessonViewer"></div>
     </div>
@@ -2571,15 +2571,18 @@ async function exportReportDocx(){
 var myLessonsCache = [];
 async function loadMyLessons(){
   var client = sbClient();
-  var { data, error } = await client.from('is_lesson_plans').select('*').eq('status','final').order('updated_at', {ascending:false});
-  if (error) { toast('Error: ' + error.message, 'err'); return; }
   var myClass = currentUser.class_name || '';
-  myLessonsCache = (data || []).filter(function(p){ return !p.target_class || (myClass && p.target_class === myClass); });
+  var q = client.from('is_plan_assignments').select('*, is_lesson_plans(title,learning_outcomes)').eq('status','implemented').order('implemented_at', {ascending:false});
+  if (myClass) q = q.eq('class_name', myClass);
+  var { data, error } = await q;
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  myLessonsCache = data || [];
   var el = document.getElementById('myLessonsList');
-  if (!myLessonsCache.length) { el.innerHTML = '<div class="empty">No lessons shared yet.</div>'; return; }
-  el.innerHTML = myLessonsCache.map(function(p){
-    return '<div class="list-item clickable" onclick="openLessonView(\'' + p.id + '\')"><div><strong>' + esc(p.title) + '</strong><br>' +
-      '<span style="font-size:11.5px;color:var(--inkl)">' + esc(p.chapter_name||'') + ' · ' + fmtDate(p.updated_at) + '</span></div><span>›</span></div>';
+  if (!myLessonsCache.length) { el.innerHTML = '<div class="empty">No lessons implemented in your class yet.</div>'; return; }
+  el.innerHTML = myLessonsCache.map(function(a){
+    var title = a.is_lesson_plans ? a.is_lesson_plans.title : 'Untitled';
+    return '<div class="list-item clickable" onclick="openLessonView(\'' + a.id + '\')"><div><strong>' + esc(title) + '</strong><br>' +
+      '<span style="font-size:11.5px;color:var(--inkl)">Implemented ' + fmtDate(a.implemented_at) + '</span></div><span>›</span></div>';
   }).join('');
 }
 
@@ -2608,22 +2611,27 @@ async function loadMyLearningHome(){
   }).join('');
 }
 
-async function openLessonView(id){
-  var plan = myLessonsCache.find(function(p){ return p.id === id; });
-  if (!plan) return;
+async function openLessonView(assignmentId){
+  var a = myLessonsCache.find(function(x){ return x.id === assignmentId; });
+  if (!a) return;
+  var plan = a.is_lesson_plans || {};
   var los = plan.learning_outcomes || [];
-  var html = '<div class="card"><div class="card-t"><div class="ci">📖</div>' + esc(plan.title) + '</div>' +
-    (plan.generated_sections||[]).map(function(s){ return '<div class="sec-block"><div class="sec-lbl">' + esc(s.label) + '</div><p style="margin-top:6px;white-space:pre-wrap;font-size:13px">' + esc(s.text) + '</p></div>'; }).join('') + '</div>';
+  var lessonPlanId = a.lesson_plan_id;
+  var html = '<div class="card"><div class="card-t"><div class="ci">📖</div>' + esc(plan.title||'Untitled') + '</div>' +
+    '<div style="font-size:11.5px;color:var(--inkl);margin-bottom:10px">Implemented ' + fmtDate(a.implemented_at) + '</div>' +
+    '<div class="sec-block"><div class="sec-lbl">🎯 Learning Outcomes</div>' +
+    (los.length ? '<ul style="margin-top:6px;padding-left:18px;font-size:13px">' + los.map(function(lo){ return '<li>' + esc(lo) + '</li>'; }).join('') + '</ul>' : '<p class="hint" style="margin-top:6px">No outcomes listed.</p>') +
+    '</div></div>';
 
   html += '<div class="card"><div class="card-t"><div class="ci">🎯</div>Set a Goal — Apply This in Your Life</div>' +
     '<div class="fg1"><label>Which learning outcome will you apply?</label><select id="goalLO"><option value="">— Choose —</option>' + los.map(function(lo){ return '<option value="' + esc(lo) + '">' + esc(lo) + '</option>'; }).join('') + '<option value="__other">Something else</option></select></div>' +
     '<div class="fg1"><label>My Goal</label><textarea id="goalText" rows="2" placeholder="e.g. I will pray Fajr on time every day this week"></textarea></div>' +
     '<div class="fg1"><label>Target Date (optional)</label><input type="date" id="goalDate"></div>' +
-    '<button class="btn btn-p btn-sm" onclick="submitGoal(\'' + id + '\')">🎯 Set Goal</button></div>';
+    '<button class="btn btn-p btn-sm" onclick="submitGoal(\'' + lessonPlanId + '\')">🎯 Set Goal</button></div>';
 
   html += '<div class="card"><div class="card-t"><div class="ci">📝</div>Add a Reflection</div>' +
     '<textarea id="reflText" rows="3" placeholder="What did this lesson mean to you? How did it go when you tried to apply it?"></textarea>' +
-    '<button class="btn btn-p btn-sm" style="margin-top:8px" onclick="submitReflection(\'' + id + '\')">📝 Save Reflection</button></div>';
+    '<button class="btn btn-p btn-sm" style="margin-top:8px" onclick="submitReflection(\'' + lessonPlanId + '\')">📝 Save Reflection</button></div>';
 
   document.getElementById('lessonViewer').innerHTML = html;
   document.getElementById('lessonViewer').scrollIntoView({behavior:'smooth'});
