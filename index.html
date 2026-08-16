@@ -65,7 +65,8 @@ h1,h2,h3,.serif{font-family:'Nunito',sans-serif;font-weight:900}
 #appShell{display:none;grid-template-columns:224px 1fr;grid-template-rows:58px 1fr;min-height:100vh}
 #appShell.show{display:grid}
 .topbar{grid-column:1/-1;background:var(--gl);color:var(--ink);display:flex;align-items:center;gap:14px;padding:0 20px;position:sticky;top:0;z-index:50;border-bottom:2px solid var(--gh)}
-.logo{font-size:18px;font-weight:900;letter-spacing:-.2px;color:var(--ink)}
+.logo{font-size:18px;font-weight:900;letter-spacing:-.2px;color:var(--ink);display:flex;align-items:center;gap:9px}
+.logo img{height:30px;object-fit:contain}
 .logo b{color:var(--g)}
 .userchip{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px}
 .role-pill{background:var(--g);color:#fff;padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:700;text-transform:capitalize}
@@ -211,6 +212,7 @@ textarea{resize:vertical}
   .sidebar.mobile-open{transform:translateX(0)}
   .topbar{padding:0 14px;gap:10px}
   .logo{font-size:15px}
+  .logo img{height:24px}
   .userchip{gap:6px;font-size:11px}
   .userchip #topUserName{display:none}
   .main{padding:16px 14px}
@@ -295,7 +297,7 @@ textarea{resize:vertical}
 <div id="appShell">
   <header class="topbar">
     <button class="mob-nav-btn" onclick="toggleMobileNav()" title="Menu">☰</button>
-    <div class="logo">🕌 Holistify <b>Islamic Studies</b></div>
+    <div class="logo"><img src="holistify-logo.png" alt="Holistify"> <b>Islamic Studies</b></div>
     <div class="userchip">
       <span class="role-pill" id="topRolePill">—</span>
       <span class="pts-pill" id="topPtsPill" style="display:none">✨ 0 Hasanat</span>
