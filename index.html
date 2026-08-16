@@ -3016,8 +3016,9 @@ async function openMushafForAssignment(assignmentId){
       '<div class="fg">' +
         '<div class="fg1"><label>Reciter</label><select id="mvReciter" onchange="onMvReciterChange()">' + recOptions + '</select></div>' +
         '<div class="fg1"><label>Script</label><select id="mvScript" onchange="renderMushafAyahs()"><option value="indopak">Indo-Pak</option><option value="tajweed">Uthmani (Tajweed Colours)</option></select></div>' +
+        '<div class="fg1"><label>Repeat Each Ayah</label><select id="mvRepeat"><option value="1">1×</option><option value="3">3×</option><option value="5" selected>5×</option><option value="10">10×</option></select></div>' +
       '</div>' +
-      '<button class="btn btn-s btn-sm" onclick="playMushafAll()">▶ Play All Ayahs</button>' +
+      '<div class="btn-row"><button class="btn btn-p btn-sm" onclick="playMushafAll()">▶ Play All (with Repeats)</button><button class="btn btn-s btn-sm" onclick="stopMushafPlayback()">⏹ Stop</button></div>' +
       '<div class="tajweed-legend" id="mvLegend" style="display:none;margin-top:10px">' +
         '<span><i style="background:#DC2626"></i>Madd</span><span><i style="background:#2563EB"></i>Qalqalah</span><span><i style="background:#16A34A"></i>Idgham</span>' +
         '<span><i style="background:#7C3AED"></i>Ikhfa</span><span><i style="background:#0891B2"></i>Iqlab</span><span><i style="background:#DB2777"></i>Ghunnah</span>' +
@@ -3052,21 +3053,56 @@ function renderMushafAyahs(){
   if (legend) legend.style.display = script === 'tajweed' ? 'flex' : 'none';
   var el = document.getElementById('mvAyahList');
   if (!el) return;
-  el.innerHTML = (currentMushafAyahs || []).map(function(v){
+  el.innerHTML = (currentMushafAyahs || []).map(function(v, idx){
     var txt = script === 'tajweed' ? (v.tajweed || v.indopak || '') : (v.indopak || '');
-    return '<div class="mushaf-ayah"><div class="mushaf-ayah-txt">' + txt + '&nbsp;﴿' + v.number + '﴾</div>' +
+    return '<div class="mushaf-ayah" id="mvAyah-' + idx + '"><div class="mushaf-ayah-txt">' + txt + '&nbsp;﴿' + v.number + '﴾</div>' +
       '<div class="mushaf-ayah-meta"><span style="font-size:11px;color:var(--inkl)">Ayah ' + v.number + '</span>' +
-      (v.audio ? '<button class="btn btn-s btn-sm" onclick="new Audio(\'' + v.audio + '\').play()">▶ Play</button>' : '') + '</div></div>';
+      (v.audio ? '<span class="btn-row"><button class="btn btn-s btn-sm" onclick="playAyah(' + idx + ')">▶ Play</button><button class="btn btn-s btn-sm" onclick="repeatAyah(' + idx + ')">🔁 Repeat</button></span>' : '') + '</div></div>';
   }).join('');
 }
-function playMushafAll(){
-  var ayahs = (currentMushafAyahs || []).filter(function(v){ return v.audio; });
-  var i = 0;
+var mushafPlaybackToken = 0;
+var mushafCurrentAudio = null;
+function getMushafRepeatCount(){
+  var sel = document.getElementById('mvRepeat');
+  return sel ? (parseInt(sel.value, 10) || 1) : 1;
+}
+function stopMushafPlayback(){
+  mushafPlaybackToken++;
+  if (mushafCurrentAudio) { mushafCurrentAudio.pause(); mushafCurrentAudio = null; }
+}
+function playAyah(index){
+  playAyahTimes(index, 1);
+}
+function repeatAyah(index){
+  playAyahTimes(index, getMushafRepeatCount());
+}
+function playAyahTimes(index, count){
+  var v = (currentMushafAyahs || [])[index];
+  if (!v || !v.audio) return;
+  var myToken = ++mushafPlaybackToken;
+  var rep = 0;
   function next(){
-    if (i >= ayahs.length) return;
-    var audio = new Audio(ayahs[i].audio);
-    audio.onended = function(){ i++; next(); };
-    audio.play();
+    if (myToken !== mushafPlaybackToken || rep >= count) return;
+    mushafCurrentAudio = new Audio(v.audio);
+    mushafCurrentAudio.onended = function(){ rep++; next(); };
+    mushafCurrentAudio.play();
+  }
+  next();
+}
+function playMushafAll(){
+  var myToken = ++mushafPlaybackToken;
+  var repeatEach = getMushafRepeatCount();
+  var ayahs = (currentMushafAyahs || []).filter(function(v){ return v.audio; });
+  var i = 0, rep = 0;
+  function next(){
+    if (myToken !== mushafPlaybackToken || i >= ayahs.length) return;
+    mushafCurrentAudio = new Audio(ayahs[i].audio);
+    mushafCurrentAudio.onended = function(){
+      if (myToken !== mushafPlaybackToken) return;
+      rep++;
+      if (rep < repeatEach) { next(); } else { rep = 0; i++; next(); }
+    };
+    mushafCurrentAudio.play();
   }
   next();
 }
