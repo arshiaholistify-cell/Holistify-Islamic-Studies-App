@@ -162,6 +162,25 @@ textarea{resize:vertical}
 .sec-guide{font-size:11px;color:var(--inkf);font-style:italic;margin-bottom:8px}
 .sec-block textarea{min-height:90px;font-size:13px;line-height:1.55}
 
+/* ===== Mushaf / tajweed ===== */
+.mushaf-ayah{border:1.5px solid var(--bdr);border-radius:var(--rmd);padding:14px 16px;margin-bottom:10px;background:#FDFDFB}
+.mushaf-ayah-txt{font-size:26px;line-height:2.1;text-align:right;direction:rtl;font-family:'Scheherazade New','Amiri','Traditional Arabic',serif}
+.mushaf-ayah-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px}
+tajweed{font-weight:600}
+tajweed.ham_wasl,tajweed.silent{color:#9AA0A6}
+tajweed.laam_shamsiyah{color:#B45309}
+tajweed.madda_normal,tajweed.madda_permissible,tajweed.madda_necessary,tajweed.madda_obligatory{color:#DC2626}
+tajweed.qalaqah{color:#2563EB}
+tajweed.ikhafa,tajweed.ikhafa_shafawi{color:#7C3AED}
+tajweed.iqlab{color:#0891B2}
+tajweed.idgham_ghunnah,tajweed.idgham_wo_ghunnah,tajweed.idgham_shafawi,tajweed.idgham_mutajanisayn,tajweed.idgham_mutaqaribayn{color:#16A34A}
+tajweed.ghunnah{color:#DB2777}
+.tajweed-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--inkl);margin-bottom:10px}
+.tajweed-legend span{display:flex;align-items:center;gap:4px}
+.tajweed-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.rec-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--red);margin-right:6px;animation:recpulse 1s infinite}
+@keyframes recpulse{0%,100%{opacity:1}50%{opacity:.3}}
+
 /* ===== Steps ===== */
 .steps{display:flex;margin-bottom:24px}
 .step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative}
@@ -588,6 +607,50 @@ textarea{resize:vertical}
       </div>
     </div>
 
+    <!-- ===== FACILITATOR: QUR'ANIC LEARNING JOURNEY ===== -->
+    <div class="page" id="page-quran">
+      <div class="pg-title">Qur'anic Learning Journey</div>
+      <div class="pg-sub">Assign a surah for memorisation, review students' recitations, and manage audio retention.</div>
+
+      <div class="tabs">
+        <div class="tab on" onclick="switchInnerTab('qr',this,'assign')">➕ Assign</div>
+        <div class="tab" onclick="switchInnerTab('qr',this,'review')">🎧 Review Recitations</div>
+        <div class="tab" onclick="switchInnerTab('qr',this,'retention')">🗄️ Retention</div>
+      </div>
+
+      <div class="tab-pane on" id="qr-assign">
+        <div class="card">
+          <div class="card-t"><div class="ci">📿</div>Assign a Surah for Memorisation</div>
+          <div class="fg">
+            <div class="fg1"><label>Class / Group</label><input id="qaClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
+            <div class="fg1"><label>Specific Student (optional)</label><select id="qaStudent"><option value="">— Whole class —</option></select></div>
+          </div>
+          <div class="fg1"><label>Surah</label><select id="qaSurah" onchange="onQaSurahChange()"><option value="">Loading surahs…</option></select></div>
+          <div class="fg">
+            <div class="fg1"><label>From Ayah</label><input type="number" id="qaAyahStart" min="1" value="1"></div>
+            <div class="fg1"><label>To Ayah</label><input type="number" id="qaAyahEnd" min="1"></div>
+          </div>
+          <div class="fg1"><label>Reciter (default for listening)</label><select id="qaReciter"><option value="ar.alafasy">Loading reciters…</option></select></div>
+          <div class="fg1"><label>Due Date (optional)</label><input type="date" id="qaDueDate"></div>
+          <div class="fg1"><label>Notes (optional)</label><textarea id="qaNotes" rows="2" placeholder="e.g. Focus on correct makhraj for ayahs 3-5"></textarea></div>
+          <button class="btn btn-p btn-sm" onclick="createQuranAssignment()">📿 Assign</button>
+        </div>
+        <div class="card"><div class="card-t"><div class="ci">📋</div>Assignments</div><div id="qaList"><div class="empty">No memorisation assignments yet.</div></div></div>
+      </div>
+
+      <div class="tab-pane" id="qr-review">
+        <div class="card"><div id="qrReviewList"><div class="empty">No recitations submitted yet.</div></div></div>
+      </div>
+
+      <div class="tab-pane" id="qr-retention">
+        <div class="card">
+          <div class="card-t"><div class="ci">🗄️</div>Audio Retention (6-month policy)</div>
+          <p class="hint">Recordings are kept for 6 months. Nothing is ever deleted automatically — recordings past their retention date are listed here for you to decide.</p>
+          <div id="qrRetentionList"><div class="empty">No recordings are due for a retention decision.</div></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== FACILITATOR: STUDENTS & REWARDS ===== -->
     <div class="page" id="page-students">
       <div class="pg-title">Students &amp; Rewards</div>
@@ -645,6 +708,26 @@ textarea{resize:vertical}
       <div class="pg-title">Learning at Home</div>
       <div class="pg-sub">Take-home tasks from your lessons — what to do, and by when.</div>
       <div id="myLearningHomeList"><div class="empty">No Learning at Home tasks yet.</div></div>
+    </div>
+
+    <!-- ===== STUDENT: QUR'ANIC LEARNING JOURNEY ===== -->
+    <div class="page" id="page-my-quran">
+      <div class="pg-title">Qur'anic Learning Journey</div>
+      <div class="pg-sub">Listen, learn, and record your recitation for the surahs assigned to you.</div>
+
+      <div class="tabs">
+        <div class="tab on" onclick="switchInnerTab('mq',this,'assignments')">📿 My Assignments</div>
+        <div class="tab" onclick="switchInnerTab('mq',this,'recitations')">🎙️ My Recitations</div>
+      </div>
+
+      <div class="tab-pane on" id="mq-assignments">
+        <div id="myQuranAssignList"><div class="empty">No surahs assigned yet.</div></div>
+        <div id="mushafViewer"></div>
+      </div>
+
+      <div class="tab-pane" id="mq-recitations">
+        <div id="myRecitationsList"><div class="empty">No recitations submitted yet.</div></div>
+      </div>
     </div>
 
     <!-- ===== STUDENT: MY GOALS ===== -->
@@ -976,6 +1059,7 @@ var FAC_NAV = [
   {p:'generator', ic:'✨', l:'Generate Lesson Plan'},
   {p:'plans', ic:'💾', l:'Saved Plans'},
   {p:'assignments', ic:'🏠', l:'Learning at Home'},
+  {p:'quran', ic:'📿', l:'Qur\'anic Journey'},
   {p:'students', ic:'🎓', l:'Students & Rewards'},
   {p:'reports', ic:'📊', l:'Reports'}
 ];
@@ -983,6 +1067,7 @@ var ADMIN_NAV = FAC_NAV.concat([{p:'admin', ic:'🛡️', l:'Admin Panel'}]);
 var STU_NAV = [
   {p:'my-lessons', ic:'📖', l:'My Lessons'},
   {p:'my-learning-home', ic:'🏠', l:'Learning at Home'},
+  {p:'my-quran', ic:'📿', l:'Qur\'anic Journey'},
   {p:'my-goals', ic:'🎯', l:'My Goals'},
   {p:'my-reflections', ic:'📝', l:'My Reflections'},
   {p:'my-rewards', ic:'🕌', l:'Pathway to Jannah'}
@@ -1021,9 +1106,11 @@ function goPage(id){
 
   if (id === 'plans') { loadSavedPlans(); loadPlanDropdownsForTabs(); loadImplementedList(); }
   if (id === 'assignments') loadAssignmentsPage();
+  if (id === 'quran') loadQuranPage();
   if (id === 'students') loadStudentsPage();
   if (id === 'reports') loadReportsPage();
   if (id === 'my-learning-home') loadMyLearningHome();
+  if (id === 'my-quran') loadMyQuranPage();
   if (id === 'my-goals') loadMyGoals();
   if (id === 'my-reflections') loadMyReflections();
   if (id === 'my-rewards') loadMyRewards();
@@ -2246,6 +2333,205 @@ function exportClassReport(){
 }
 
 // ════════════════════════════════════════════════════════════════════════
+// QUR'ANIC LEARNING JOURNEY — shared helpers (surah list, reciters, audio)
+// Text/audio pulled live from the free, open api.alquran.cloud and
+// api.quran.com services (no key required). Nothing here is stored —
+// only the student's own recitation recordings are persisted.
+// ════════════════════════════════════════════════════════════════════════
+var quranSurahsCache = null;
+var quranRecitersCache = null;
+var quranAssignmentsCache = [];
+var quranReviewCache = [];
+var quranRetentionCache = [];
+
+async function loadQuranSurahList(){
+  if (quranSurahsCache) return quranSurahsCache;
+  try {
+    var res = await fetch('https://api.alquran.cloud/v1/surah');
+    var json = await res.json();
+    quranSurahsCache = json.data || [];
+  } catch(e) { quranSurahsCache = []; }
+  return quranSurahsCache;
+}
+async function loadQuranReciters(){
+  if (quranRecitersCache) return quranRecitersCache;
+  try {
+    var res = await fetch('https://api.alquran.cloud/v1/edition?format=audio&language=ar&type=versebyverse');
+    var json = await res.json();
+    quranRecitersCache = json.data || [];
+  } catch(e) { quranRecitersCache = []; }
+  return quranRecitersCache;
+}
+async function loadMushafData(surahNumber, reciter){
+  try {
+    var textRes = await fetch('https://api.quran.com/api/v4/verses/by_chapter/' + surahNumber + '?fields=text_indopak,text_uthmani_tajweed&per_page=300').then(function(r){ return r.json(); });
+    var audioRes = await fetch('https://api.alquran.cloud/v1/surah/' + surahNumber + '/' + reciter).then(function(r){ return r.json(); });
+    var verses = (textRes && textRes.verses) || [];
+    var ayahsAudio = (audioRes && audioRes.data && audioRes.data.ayahs) || [];
+    return verses.map(function(v, i){
+      var a = ayahsAudio[i] || {};
+      return { number: v.verse_number, indopak: v.text_indopak, tajweed: v.text_uthmani_tajweed, audio: a.audio };
+    });
+  } catch(e) { return []; }
+}
+async function getRecitationAudioUrl(path){
+  var { data, error } = await sbClient().storage.from('quran-recitations').createSignedUrl(path, 3600);
+  if (error) { toast('Error: ' + error.message, 'err'); return null; }
+  return data.signedUrl;
+}
+async function playRecitation(id){
+  var rec = quranReviewCache.find(function(r){ return r.id === id; }) ||
+    quranRetentionCache.find(function(r){ return r.id === id; }) ||
+    (typeof myRecitationsCache !== 'undefined' ? myRecitationsCache.find(function(r){ return r.id === id; }) : null);
+  if (!rec) return;
+  var url = await getRecitationAudioUrl(rec.audio_path);
+  if (!url) return;
+  var box = document.getElementById('qrAudio-' + id);
+  if (box) box.innerHTML = '<audio controls autoplay src="' + url + '" style="width:100%"></audio>';
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// QUR'ANIC LEARNING JOURNEY — facilitator: assign, review, retention
+// ════════════════════════════════════════════════════════════════════════
+async function loadQuranPage(){
+  if (!studentsCache.length) await loadStudentsPage();
+  var surahs = await loadQuranSurahList();
+  var reciters = await loadQuranReciters();
+  var stuSel = document.getElementById('qaStudent');
+  stuSel.innerHTML = '<option value="">— Whole class —</option>' + studentsCache.map(function(s){
+    return '<option value="' + s.id + '">' + esc(s.full_name||s.email) + (s.class_name ? (' (' + esc(s.class_name) + ')') : '') + '</option>';
+  }).join('');
+  var surSel = document.getElementById('qaSurah');
+  surSel.innerHTML = surahs.length ? surahs.map(function(s){
+    return '<option value="' + s.number + '">' + s.number + '. ' + esc(s.englishName) + ' (' + esc(s.name) + ')</option>';
+  }).join('') : '<option value="">Could not load surah list — check your connection</option>';
+  var recSel = document.getElementById('qaReciter');
+  recSel.innerHTML = reciters.length ? reciters.map(function(r){
+    return '<option value="' + r.identifier + '"' + (r.identifier === 'ar.alafasy' ? ' selected' : '') + '>' + esc(r.englishName || r.name) + '</option>';
+  }).join('') : '<option value="ar.alafasy">Mishary Alafasy (default)</option>';
+  if (surahs.length) onQaSurahChange();
+  loadQuranAssignments();
+  loadQuranReviewList();
+  loadQuranRetentionList();
+}
+function onQaSurahChange(){
+  var num = parseInt(document.getElementById('qaSurah').value, 10);
+  var s = (quranSurahsCache || []).find(function(x){ return x.number === num; });
+  if (s) document.getElementById('qaAyahEnd').value = s.numberOfAyahs;
+}
+async function createQuranAssignment(){
+  var className = document.getElementById('qaClass').value.trim();
+  var studentId = document.getElementById('qaStudent').value || null;
+  var surahNum = parseInt(document.getElementById('qaSurah').value, 10);
+  var surah = (quranSurahsCache || []).find(function(s){ return s.number === surahNum; });
+  var ayahStart = parseInt(document.getElementById('qaAyahStart').value, 10) || 1;
+  var ayahEnd = parseInt(document.getElementById('qaAyahEnd').value, 10) || ayahStart;
+  var reciter = document.getElementById('qaReciter').value || 'ar.alafasy';
+  var dueDate = document.getElementById('qaDueDate').value || null;
+  var notes = document.getElementById('qaNotes').value.trim();
+  if (!className) return alert('Please enter a class/group.');
+  if (!surah) return alert('Please choose a surah.');
+  var { error } = await sbClient().from('is_quran_assignments').insert({
+    class_name: className, student_id: studentId, surah_number: surah.number, surah_name: surah.englishName,
+    ayah_start: ayahStart, ayah_end: ayahEnd, reciter: reciter, due_date: dueDate, notes: notes, created_by: currentUser.id
+  });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Surah assigned.');
+  document.getElementById('qaClass').value = '';
+  document.getElementById('qaNotes').value = '';
+  loadQuranAssignments();
+}
+async function loadQuranAssignments(){
+  var client = sbClient();
+  var { data, error } = await client.from('is_quran_assignments').select('*').order('created_at', {ascending:false});
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  quranAssignmentsCache = data || [];
+  var el = document.getElementById('qaList');
+  if (!quranAssignmentsCache.length) { el.innerHTML = '<div class="empty">No memorisation assignments yet.</div>'; return; }
+  el.innerHTML = quranAssignmentsCache.map(function(a){
+    var who = a.student_id ? ((studentsCache.find(function(s){ return s.id === a.student_id; }) || {}).full_name || 'Student') : 'Whole class';
+    return '<div class="list-item"><div><strong>' + esc(a.surah_name) + '</strong> (Ayah ' + a.ayah_start + '-' + a.ayah_end + ')<br>' +
+      '<span style="font-size:11.5px;color:var(--inkl)">' + esc(a.class_name) + ' · ' + esc(who) + (a.due_date ? (' · Due ' + fmtDate(a.due_date)) : '') + '</span></div>' +
+      '<button class="btn btn-d btn-sm" onclick="deleteQuranAssignment(\'' + a.id + '\')">🗑</button></div>';
+  }).join('');
+}
+async function deleteQuranAssignment(id){
+  if (!confirm('Delete this assignment?')) return;
+  await sbClient().from('is_quran_assignments').delete().eq('id', id);
+  toast('Assignment deleted.');
+  loadQuranAssignments();
+}
+async function loadQuranReviewList(){
+  var client = sbClient();
+  var { data, error } = await client.from('is_recitations').select('*, student:is_profiles!student_id(full_name,class_name)').eq('status', 'pending').is('deleted_at', null).order('created_at');
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  quranReviewCache = data || [];
+  var el = document.getElementById('qrReviewList');
+  if (!quranReviewCache.length) { el.innerHTML = '<div class="empty">No recitations submitted yet.</div>'; return; }
+  el.innerHTML = quranReviewCache.map(function(r){
+    var sName = r.student ? (r.student.full_name || 'Student') : 'Student';
+    var range = ' — Ayah ' + r.ayah_start + (r.ayah_end !== r.ayah_start ? ('-' + r.ayah_end) : '');
+    return '<div class="card" style="margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
+      '<div><strong>' + esc(sName) + '</strong><br><span style="font-size:12px;color:var(--inkl)">' + esc(r.surah_name) + range + ' · ' + fmtDate(r.created_at) + '</span></div>' +
+      '<span class="pill pill-active">pending</span></div>' +
+      '<div id="qrAudio-' + r.id + '" style="margin-top:8px"><button class="btn btn-s btn-sm" onclick="playRecitation(\'' + r.id + '\')">▶ Play Recording</button></div>' +
+      '<div class="fg1" style="margin-top:8px"><label>Feedback</label><textarea id="qrFeedback-' + r.id + '" rows="2" placeholder="e.g. Beautiful tajweed! Watch your madd on ayah 3."></textarea></div>' +
+      '<button class="btn btn-p btn-sm" style="margin-top:6px" onclick="markRecitationReviewed(\'' + r.id + '\')">✅ Mark Reviewed</button>' +
+      '</div>';
+  }).join('');
+}
+async function markRecitationReviewed(id){
+  var rec = quranReviewCache.find(function(r){ return r.id === id; });
+  if (!rec) return;
+  var fbEl = document.getElementById('qrFeedback-' + id);
+  var feedback = fbEl ? fbEl.value.trim() : '';
+  var client = sbClient();
+  var { error } = await client.from('is_recitations').update({ status: 'reviewed', facilitator_feedback: feedback, reviewed_by: currentUser.id, reviewed_at: new Date().toISOString() }).eq('id', id);
+  if (error) return toast('Error: ' + error.message, 'err');
+  await client.from('is_rewards').insert({ student_id: rec.student_id, definition_id: null, title: 'Recitation Reviewed', description: 'Received feedback on ' + rec.surah_name + ' recitation', icon: '📿', points: 5, awarded_by: currentUser.id });
+  await client.from('is_rewards').insert({ student_id: currentUser.id, definition_id: null, title: 'Facilitated Recitation Review', description: 'Reviewed a student\'s Qur\'an recitation', icon: '🕌', points: 2, awarded_by: null });
+  await refreshHasanatPill();
+  toast('Feedback saved.');
+  loadQuranReviewList();
+}
+async function loadQuranRetentionList(){
+  var client = sbClient();
+  var nowIso = new Date().toISOString();
+  var { data, error } = await client.from('is_recitations').select('*, student:is_profiles!student_id(full_name,class_name)').lte('expires_at', nowIso).is('deleted_at', null).order('expires_at');
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  quranRetentionCache = data || [];
+  var el = document.getElementById('qrRetentionList');
+  if (!quranRetentionCache.length) { el.innerHTML = '<div class="empty">No recordings are due for a retention decision.</div>'; return; }
+  el.innerHTML = quranRetentionCache.map(function(r){
+    var sName = r.student ? (r.student.full_name || 'Student') : 'Student';
+    return '<div class="card" style="margin-bottom:10px">' +
+      '<div><strong>' + esc(sName) + '</strong><br><span style="font-size:12px;color:var(--inkl)">' + esc(r.surah_name) + ' · Recorded ' + fmtDate(r.created_at) + ' · Retention expired ' + fmtDate(r.expires_at) + '</span></div>' +
+      '<div id="qrAudio-' + r.id + '" style="margin-top:8px"><button class="btn btn-s btn-sm" onclick="playRecitation(\'' + r.id + '\')">▶ Play Recording</button></div>' +
+      '<div class="btn-row" style="margin-top:8px"><button class="btn btn-p btn-sm" onclick="extendRecitationRetention(\'' + r.id + '\')">⏳ Keep 6 More Months</button><button class="btn btn-d btn-sm" onclick="deleteRecitation(\'' + r.id + '\')">🗑️ Delete Permanently</button></div>' +
+      '</div>';
+  }).join('');
+}
+async function extendRecitationRetention(id){
+  var newExpiry = new Date(); newExpiry.setMonth(newExpiry.getMonth() + 6);
+  var { error } = await sbClient().from('is_recitations').update({ expires_at: newExpiry.toISOString(), retention_extended_at: new Date().toISOString() }).eq('id', id);
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Retention extended 6 months.');
+  loadQuranRetentionList();
+}
+async function deleteRecitation(id){
+  var rec = quranRetentionCache.find(function(r){ return r.id === id; });
+  if (!rec) return;
+  if (!confirm('Permanently delete this recitation audio? This cannot be undone.')) return;
+  var client = sbClient();
+  await client.storage.from('quran-recitations').remove([rec.audio_path]);
+  var { error } = await client.from('is_recitations').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Recording deleted.');
+  loadQuranRetentionList();
+}
+
+// ════════════════════════════════════════════════════════════════════════
 // EXPORTS — PDF (print), Word (docx.js), PPT (pptxgenjs)
 // ════════════════════════════════════════════════════════════════════════
 function exportPDF(plan){
@@ -2659,6 +2945,186 @@ async function submitReflection(lessonPlanId){
   toast('Reflection saved.');
   document.getElementById('reflText').value = '';
   await checkAndAwardRewards(currentUser.id);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// STUDENT: QUR'ANIC LEARNING JOURNEY
+// ════════════════════════════════════════════════════════════════════════
+var myQuranAssignmentsCache = [];
+var myRecitationsCache = [];
+var currentMushafAyahs = null;
+var currentAssignmentForRecording = null;
+var quranMediaRecorder = null;
+var quranRecordedChunks = [];
+var quranRecordedBlob = null;
+var quranRecordStartTime = null;
+
+async function loadMyQuranPage(){
+  await loadMyQuranAssignments();
+  await loadMyRecitationsList();
+}
+async function loadMyQuranAssignments(){
+  var client = sbClient();
+  var myClass = currentUser.class_name || '';
+  var { data, error } = await client.from('is_quran_assignments').select('*').order('created_at', {ascending:false});
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  myQuranAssignmentsCache = (data || []).filter(function(a){ return a.student_id === currentUser.id || (!a.student_id && myClass && a.class_name === myClass); });
+  var el = document.getElementById('myQuranAssignList');
+  if (!myQuranAssignmentsCache.length) { el.innerHTML = '<div class="empty">No surahs assigned yet.</div>'; return; }
+  el.innerHTML = myQuranAssignmentsCache.map(function(a){
+    return '<div class="list-item clickable" onclick="openMushafForAssignment(\'' + a.id + '\')"><div><strong>' + esc(a.surah_name) + '</strong> (Ayah ' + a.ayah_start + '-' + a.ayah_end + ')<br>' +
+      '<span style="font-size:11.5px;color:var(--inkl)">' + (a.due_date ? ('Due ' + fmtDate(a.due_date)) : 'No due date') + '</span></div><span>›</span></div>';
+  }).join('');
+}
+async function loadMyRecitationsList(){
+  var client = sbClient();
+  var { data, error } = await client.from('is_recitations').select('*').eq('student_id', currentUser.id).is('deleted_at', null).order('created_at', {ascending:false});
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  myRecitationsCache = data || [];
+  var el = document.getElementById('myRecitationsList');
+  if (!myRecitationsCache.length) { el.innerHTML = '<div class="empty">No recitations submitted yet.</div>'; return; }
+  el.innerHTML = myRecitationsCache.map(function(r){
+    var range = ' — Ayah ' + r.ayah_start + '-' + r.ayah_end;
+    return '<div class="card" style="margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
+      '<div><strong>' + esc(r.surah_name) + '</strong>' + range + '<br><span style="font-size:11.5px;color:var(--inkl)">' + fmtDate(r.created_at) + '</span></div>' +
+      '<span class="pill ' + (r.status === 'reviewed' ? 'pill-final' : 'pill-active') + '">' + r.status + '</span></div>' +
+      '<div id="qrAudio-' + r.id + '" style="margin-top:8px"><button class="btn btn-s btn-sm" onclick="playRecitation(\'' + r.id + '\')">▶ Play My Recording</button></div>' +
+      (r.facilitator_feedback ? '<div class="sec-block" style="margin-top:8px"><div class="sec-lbl">💬 Facilitator Feedback</div><p style="margin-top:4px;font-size:13px">' + esc(r.facilitator_feedback) + '</p></div>' : '') +
+      '</div>';
+  }).join('');
+}
+async function openMushafForAssignment(assignmentId){
+  var a = myQuranAssignmentsCache.find(function(x){ return x.id === assignmentId; });
+  if (!a) return;
+  currentAssignmentForRecording = a;
+  quranRecordedBlob = null;
+  var el = document.getElementById('mushafViewer');
+  el.innerHTML = '<div class="card"><div class="empty">Loading mushaf…</div></div>';
+  el.scrollIntoView({behavior:'smooth'});
+  var reciters = await loadQuranReciters();
+  var reciter = a.reciter || 'ar.alafasy';
+  var ayahs = await loadMushafData(a.surah_number, reciter);
+  currentMushafAyahs = ayahs.filter(function(x){ return x.number >= a.ayah_start && x.number <= a.ayah_end; });
+  var recOptions = (reciters.length ? reciters : [{identifier: reciter, englishName: 'Default Reciter'}]).map(function(r){
+    return '<option value="' + r.identifier + '"' + (r.identifier === reciter ? ' selected' : '') + '>' + esc(r.englishName || r.name) + '</option>';
+  }).join('');
+  el.innerHTML =
+    '<div class="card">' +
+      '<div class="card-t"><div class="ci">📿</div>' + esc(a.surah_name) + ' — Ayah ' + a.ayah_start + '–' + a.ayah_end + '</div>' +
+      (a.notes ? '<p class="hint">' + esc(a.notes) + '</p>' : '') +
+      '<div class="fg">' +
+        '<div class="fg1"><label>Reciter</label><select id="mvReciter" onchange="onMvReciterChange()">' + recOptions + '</select></div>' +
+        '<div class="fg1"><label>Script</label><select id="mvScript" onchange="renderMushafAyahs()"><option value="indopak">Indo-Pak</option><option value="tajweed">Uthmani (Tajweed Colours)</option></select></div>' +
+      '</div>' +
+      '<button class="btn btn-s btn-sm" onclick="playMushafAll()">▶ Play All Ayahs</button>' +
+      '<div class="tajweed-legend" id="mvLegend" style="display:none;margin-top:10px">' +
+        '<span><i style="background:#DC2626"></i>Madd</span><span><i style="background:#2563EB"></i>Qalqalah</span><span><i style="background:#16A34A"></i>Idgham</span>' +
+        '<span><i style="background:#7C3AED"></i>Ikhfa</span><span><i style="background:#0891B2"></i>Iqlab</span><span><i style="background:#DB2777"></i>Ghunnah</span>' +
+        '<span><i style="background:#B45309"></i>Laam Shamsiyah</span>' +
+      '</div>' +
+      '<div id="mvAyahList" style="margin-top:10px"></div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="card-t"><div class="ci">🎙️</div>Record My Recitation</div>' +
+      '<div id="recStatus" class="hint">Tap Start to record yourself reciting this passage. Recordings are compressed automatically to save storage.</div>' +
+      '<div class="btn-row" style="margin-top:8px">' +
+        '<button class="btn btn-p btn-sm" id="recStartBtn" onclick="startRecitationRecording()">🔴 Start Recording</button>' +
+        '<button class="btn btn-s btn-sm" id="recStopBtn" onclick="stopRecitationRecording()" style="display:none">⏹ Stop</button>' +
+      '</div>' +
+      '<div id="recPreview" style="margin-top:8px"></div>' +
+    '</div>';
+  renderMushafAyahs();
+}
+function onMvReciterChange(){
+  var a = currentAssignmentForRecording;
+  if (!a) return;
+  var reciter = document.getElementById('mvReciter').value;
+  loadMushafData(a.surah_number, reciter).then(function(ayahs){
+    currentMushafAyahs = ayahs.filter(function(x){ return x.number >= a.ayah_start && x.number <= a.ayah_end; });
+    renderMushafAyahs();
+  });
+}
+function renderMushafAyahs(){
+  var scriptEl = document.getElementById('mvScript');
+  var script = scriptEl ? scriptEl.value : 'indopak';
+  var legend = document.getElementById('mvLegend');
+  if (legend) legend.style.display = script === 'tajweed' ? 'flex' : 'none';
+  var el = document.getElementById('mvAyahList');
+  if (!el) return;
+  el.innerHTML = (currentMushafAyahs || []).map(function(v){
+    var txt = script === 'tajweed' ? (v.tajweed || v.indopak || '') : (v.indopak || '');
+    return '<div class="mushaf-ayah"><div class="mushaf-ayah-txt">' + txt + '&nbsp;﴿' + v.number + '﴾</div>' +
+      '<div class="mushaf-ayah-meta"><span style="font-size:11px;color:var(--inkl)">Ayah ' + v.number + '</span>' +
+      (v.audio ? '<button class="btn btn-s btn-sm" onclick="new Audio(\'' + v.audio + '\').play()">▶ Play</button>' : '') + '</div></div>';
+  }).join('');
+}
+function playMushafAll(){
+  var ayahs = (currentMushafAyahs || []).filter(function(v){ return v.audio; });
+  var i = 0;
+  function next(){
+    if (i >= ayahs.length) return;
+    var audio = new Audio(ayahs[i].audio);
+    audio.onended = function(){ i++; next(); };
+    audio.play();
+  }
+  next();
+}
+
+async function startRecitationRecording(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { alert('Recording is not supported in this browser.'); return; }
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
+    var mimeType = (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) ? 'audio/webm;codecs=opus'
+      : (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/mp4')) ? 'audio/mp4' : '';
+    quranMediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType: mimeType, audioBitsPerSecond: 32000 }) : new MediaRecorder(stream);
+    quranRecordedChunks = [];
+    quranRecordStartTime = Date.now();
+    quranMediaRecorder.ondataavailable = function(e){ if (e.data && e.data.size) quranRecordedChunks.push(e.data); };
+    quranMediaRecorder.onstop = function(){
+      quranRecordedBlob = new Blob(quranRecordedChunks, { type: quranMediaRecorder.mimeType || 'audio/webm' });
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      var url = URL.createObjectURL(quranRecordedBlob);
+      var durSec = Math.round((Date.now() - quranRecordStartTime) / 1000);
+      document.getElementById('recPreview').innerHTML =
+        '<audio controls src="' + url + '" style="width:100%"></audio>' +
+        '<div style="font-size:11px;color:var(--inkl);margin-top:4px">' + durSec + 's · ' + Math.round(quranRecordedBlob.size / 1024) + ' KB (compressed)</div>' +
+        '<button class="btn btn-p btn-sm" style="margin-top:8px" onclick="submitRecitation(' + durSec + ')">📤 Submit Recitation</button>';
+    };
+    quranMediaRecorder.start();
+    document.getElementById('recStatus').innerHTML = '<span class="rec-dot"></span>Recording…';
+    document.getElementById('recStartBtn').style.display = 'none';
+    document.getElementById('recStopBtn').style.display = 'inline-flex';
+  } catch(err) {
+    alert('Could not access microphone: ' + err.message);
+  }
+}
+function stopRecitationRecording(){
+  if (quranMediaRecorder && quranMediaRecorder.state !== 'inactive') quranMediaRecorder.stop();
+  document.getElementById('recStatus').textContent = 'Recording stopped. Preview below.';
+  document.getElementById('recStartBtn').style.display = 'inline-flex';
+  document.getElementById('recStopBtn').style.display = 'none';
+}
+async function submitRecitation(durSec){
+  if (!quranRecordedBlob || !currentAssignmentForRecording) return;
+  var a = currentAssignmentForRecording;
+  var client = sbClient();
+  var ext = quranRecordedBlob.type.indexOf('mp4') >= 0 ? 'm4a' : 'webm';
+  var path = currentUser.id + '/' + a.id + '/' + Date.now() + '.' + ext;
+  var { error: upErr } = await client.storage.from('quran-recitations').upload(path, quranRecordedBlob, { contentType: quranRecordedBlob.type, upsert: false });
+  if (upErr) return toast('Upload error: ' + upErr.message, 'err');
+  var { error } = await client.from('is_recitations').insert({
+    assignment_id: a.id, student_id: currentUser.id, surah_number: a.surah_number, surah_name: a.surah_name,
+    ayah_start: a.ayah_start, ayah_end: a.ayah_end, audio_path: path, duration_seconds: durSec, file_size_bytes: quranRecordedBlob.size
+  });
+  if (error) return toast('Error: ' + error.message, 'err');
+  await client.from('is_rewards').insert({ student_id: currentUser.id, definition_id: null, title: 'Recitation Submitted', description: 'Recorded ' + a.surah_name + ' for review', icon: '📿', points: 3, awarded_by: null });
+  await refreshHasanatPill();
+  toast('Recitation submitted — may Allah accept it.');
+  quranRecordedBlob = null;
+  document.getElementById('recPreview').innerHTML = '';
+  document.getElementById('recStatus').textContent = 'Submitted! You can record again if you like.';
+  loadMyRecitationsList();
 }
 
 // ════════════════════════════════════════════════════════════════════════
