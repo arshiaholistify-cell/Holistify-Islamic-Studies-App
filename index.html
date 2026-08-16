@@ -1685,6 +1685,7 @@ async function savePlan(status){
 // ════════════════════════════════════════════════════════════════════════
 // SAVED PLANS
 // ════════════════════════════════════════════════════════════════════════
+var savedPlansCache = [];
 async function loadSavedPlans(){
   var client = sbClient();
   var curId = document.getElementById('plFilterCurriculum').value;
@@ -1694,6 +1695,7 @@ async function loadSavedPlans(){
   if (status) q = q.eq('status', status);
   var { data, error } = await q;
   if (error) { toast('Error: ' + error.message, 'err'); return; }
+  savedPlansCache = data || [];
   var el = document.getElementById('savedPlansList');
   if (!data || !data.length) { el.innerHTML = '<div class="empty">No saved plans yet.</div>'; return; }
   el.innerHTML = '<div class="twrap"><table class="tbl"><thead><tr><th>Title</th><th>Class</th><th>Duration</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead><tbody>' +
@@ -1701,8 +1703,19 @@ async function loadSavedPlans(){
       return '<tr><td><strong>' + esc(p.title) + '</strong></td><td>' + esc(p.target_class||'All') + '</td><td>' + esc(p.duration||'—') + '</td>' +
         '<td><span class="pill pill-' + p.status + '">' + p.status + '</span></td><td>' + fmtDate(p.updated_at) + '</td>' +
         '<td><div class="btn-row"><button class="btn btn-s btn-sm" onclick="openPlan(\'' + p.id + '\')">✏️ Open</button>' +
+        '<button class="btn btn-s btn-sm" onclick="exportSavedPlan(\'' + p.id + '\',\'pdf\')">🖨️</button>' +
+        '<button class="btn btn-s btn-sm" onclick="exportSavedPlan(\'' + p.id + '\',\'docx\')">📄</button>' +
+        '<button class="btn btn-s btn-sm" onclick="exportSavedPlan(\'' + p.id + '\',\'pptx\')">📊</button>' +
         '<button class="btn btn-d btn-sm" onclick="deletePlanRow(\'' + p.id + '\')">🗑</button></div></td></tr>';
     }).join('') + '</tbody></table></div>';
+}
+function exportSavedPlan(id, type){
+  var p = savedPlansCache.find(function(x){ return x.id === id; });
+  if (!p) return;
+  var plan = { title: p.title, chapter_name: p.chapter_name, target_class: p.target_class, duration: p.duration, sections: p.generated_sections || [] };
+  if (type === 'pdf') exportPDF(plan);
+  else if (type === 'docx') exportDocx(plan);
+  else if (type === 'pptx') exportPptx(plan);
 }
 async function openPlan(id){
   var client = sbClient();
@@ -1777,17 +1790,41 @@ async function exportPptx(plan){
     var pptx = new PptxGenJS();
     pptx.defineLayout({ name:'HOLIS', width:10, height:5.63 }); pptx.layout = 'HOLIS';
 
+    var GREEN='5B8C3E', DARKGREEN='2E6B5E', GOLD='E8A020', CREAM='FFF8EE', INK='1A1A2E', INKL='6B7A8A';
+
+    // A theme that runs across every content slide: cream background, green/gold accent
+    // bars top & bottom, footer branding + page number.
+    pptx.defineSlideMaster({
+      title: 'HOLIS_MASTER',
+      background: { color: CREAM },
+      objects: [
+        { rect: { x:0, y:0, w:'100%', h:0.16, fill:{ color:GREEN } } },
+        { rect: { x:0, y:5.47, w:'100%', h:0.16, fill:{ color:GOLD } } },
+        { text: { text:'🕌 Holistify Islamic Studies', options:{ x:0.4, y:5.1, w:6, h:0.32, fontSize:9, bold:true, color:INKL, fontFace:'Calibri' } } }
+      ],
+      slideNumber: { x:9.15, y:5.14, fontSize:9, color:INKL, fontFace:'Calibri' }
+    });
+
     var title = pptx.addSlide();
-    title.background = { color:'1A1A2E' };
+    title.background = { color:INK };
+    title.addShape('rect', { x:0, y:0, w:10, h:0.22, fill:{ color:GREEN } });
+    title.addShape('rect', { x:0, y:5.41, w:10, h:0.22, fill:{ color:GOLD } });
+    title.addShape('ellipse', { x:7.6, y:-1.2, w:4, h:4, fill:{ color:GREEN, transparency:82 } });
+    title.addShape('ellipse', { x:-1.4, y:3.6, w:3.4, h:3.4, fill:{ color:GOLD, transparency:85 } });
+    title.addText('🕌', { x:0.6, y:0.9, w:1.2, h:1, fontSize:40 });
     title.addText(plan.title, { x:0.6, y:1.9, w:8.8, h:1.2, fontSize:32, bold:true, color:'FFFFFF', fontFace:'Calibri' });
     var sub = [plan.chapter_name && plan.chapter_name !== plan.title ? plan.chapter_name : '', plan.target_class ? ('Class: ' + plan.target_class) : '', plan.duration ? ('Duration: ' + plan.duration) : '', new Date().toLocaleDateString()].filter(Boolean).join('   |   ');
-    title.addText(sub, { x:0.6, y:3.1, w:8.8, h:0.6, fontSize:14, color:'E8A030', fontFace:'Calibri' });
+    title.addText(sub, { x:0.6, y:3.05, w:8.8, h:0.6, fontSize:14, color:'F9C74F', fontFace:'Calibri' });
+    title.addText('Holistify Islamic Studies', { x:0.6, y:4.9, w:6, h:0.3, fontSize:10, color:'8892A4', fontFace:'Calibri' });
 
-    plan.sections.forEach(function(s){
-      var sl = pptx.addSlide();
-      sl.addText(s.label, { x:0.5, y:0.35, w:9, h:0.7, fontSize:24, bold:true, color:'5B8C3E', fontFace:'Calibri' });
-      sl.addShape('line', { x:0.5, y:1.05, w:9, h:0, line:{ color:'BFE0C4', width:2 } });
-      sl.addText(s.text || '(not filled in)', { x:0.5, y:1.25, w:9, h:4, fontSize:14, color:'1C1A17', fontFace:'Calibri', valign:'top' });
+    plan.sections.forEach(function(s, i){
+      var sl = pptx.addSlide({ masterName:'HOLIS_MASTER' });
+      sl.addShape('roundRect', { x:0.5, y:0.35, w:0.62, h:0.62, rectRadius:0.12, fill:{ color:GREEN } });
+      sl.addText(String(i+1), { x:0.5, y:0.35, w:0.62, h:0.62, fontSize:22, bold:true, color:'FFFFFF', fontFace:'Calibri', align:'center', valign:'middle' });
+      sl.addText(s.label, { x:1.3, y:0.35, w:8.1, h:0.62, fontSize:22, bold:true, color:DARKGREEN, fontFace:'Calibri', valign:'middle' });
+      sl.addShape('line', { x:0.5, y:1.12, w:9, h:0, line:{ color:'C5DDA8', width:2 } });
+      sl.addShape('roundRect', { x:0.5, y:1.3, w:9, h:3.9, rectRadius:0.08, fill:{ color:'FFFFFF' }, shadow:{ type:'outer', color:'1A1A2E', opacity:0.12, blur:6, offset:2, angle:90 } });
+      sl.addText(s.text || '(not filled in)', { x:0.75, y:1.5, w:8.5, h:3.55, fontSize:14, color:INK, fontFace:'Calibri', valign:'top' });
     });
 
     await pptx.writeFile({ fileName: (plan.title||'Lesson_Plan').replace(/[^a-z0-9]/gi,'_') + '.pptx' });
