@@ -2634,17 +2634,24 @@ async function submitReflection(lessonPlanId){
 // ════════════════════════════════════════════════════════════════════════
 // STUDENT: MY GOALS
 // ════════════════════════════════════════════════════════════════════════
+var myGoalAppNotes = {};
+var myAppNoteOpen = {};
+
 async function loadMyGoals(){
   var client = sbClient();
-  var [goalsRes, outcomesRes] = await Promise.all([
+  var [goalsRes, outcomesRes, notesRes] = await Promise.all([
     client.from('is_student_goals').select('*').eq('student_id', currentUser.id).order('created_at', {ascending:false}),
-    client.from('is_outcome_tracking').select('*').eq('student_id', currentUser.id).order('marked_at', {ascending:false})
+    client.from('is_outcome_tracking').select('*').eq('student_id', currentUser.id).order('marked_at', {ascending:false}),
+    client.from('is_reflections').select('*').eq('student_id', currentUser.id).not('goal_id', 'is', null).order('created_at', {ascending:false})
   ]);
   if (goalsRes.error) { toast('Error: ' + goalsRes.error.message, 'err'); return; }
   myGoalsCache = goalsRes.data || [];
   var outcomes = outcomesRes.data || [];
   var achieved = outcomes.filter(function(o){ return o.achieved; });
   var notAchieved = outcomes.filter(function(o){ return !o.achieved; });
+
+  myGoalAppNotes = {};
+  (notesRes.data || []).forEach(function(n){ (myGoalAppNotes[n.goal_id] = myGoalAppNotes[n.goal_id] || []).push(n); });
 
   var addForm = '<div class="card"><div class="card-t"><div class="ci">➕</div>Add a Target</div>' +
     '<div class="fg1"><label>Target</label><input id="myTgtText" placeholder="e.g. Pray all 5 salah on time this week"></div>' +
@@ -2653,10 +2660,19 @@ async function loadMyGoals(){
 
   var targetsHtml = '<div class="card"><div class="card-t"><div class="ci">🎯</div>My Targets</div>' +
     (myGoalsCache.length ? myGoalsCache.map(function(g){
-      return '<div class="list-item"><div>' + esc(g.goal_text) + (g.learning_outcome ? ('<br><span style="font-size:11px;color:var(--inkl)">' + esc(g.learning_outcome) + '</span>') : '') +
+      var notes = myGoalAppNotes[g.id] || [];
+      var notesHtml = notes.length ? '<div style="margin-top:8px">' + notes.map(function(n){
+        return '<div style="margin-top:5px;padding-left:9px;border-left:2px solid var(--gh);font-size:11.5px;color:var(--inkm)">' + nl2br(n.reflection_text) + '<div style="font-size:10px;color:var(--inkf);margin-top:1px">' + fmtDate(n.created_at) + '</div></div>';
+      }).join('') + '</div>' : '';
+      return '<div class="list-item" style="flex-direction:column;align-items:stretch">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
+        '<div>' + esc(g.goal_text) + (g.learning_outcome ? ('<br><span style="font-size:11px;color:var(--inkl)">' + esc(g.learning_outcome) + '</span>') : '') +
         (g.target_date ? ('<br><span style="font-size:11px;color:var(--inkl)">Target: ' + fmtDate(g.target_date) + '</span>') : '') + '</div>' +
         '<div style="text-align:right"><span class="pill pill-' + g.status + '">' + g.status + '</span>' +
-        (g.status === 'active' ? '<div class="btn-row"><button class="btn btn-p btn-sm" onclick="markGoalAchieved(\'' + g.id + '\')">✅ Mark Achieved</button></div>' : '') + '</div></div>';
+        '<div class="btn-row">' +
+        '<button class="btn btn-s btn-sm" onclick="toggleAppNoteForm(\'' + g.id + '\')">📝 How I Applied It</button>' +
+        (g.status === 'active' ? '<button class="btn btn-p btn-sm" onclick="markGoalAchieved(\'' + g.id + '\')">✅ Mark Achieved</button>' : '') +
+        '</div></div></div>' + notesHtml + '<div id="appNoteForm-' + g.id + '"></div></div>';
     }).join('') : '<div class="empty">No targets yet.</div>') + '</div>';
 
   var achievedHtml = '<div class="card"><div class="card-t"><div class="ci">✅</div>Outcomes Achieved</div>' +
@@ -2676,6 +2692,32 @@ async function addMyTarget(){
   if (error) return toast('Error: ' + error.message, 'err');
   toast('Target set — may Allah make it easy.');
   loadMyGoals();
+}
+
+function toggleAppNoteForm(goalId){
+  myAppNoteOpen[goalId] = !myAppNoteOpen[goalId];
+  var el = document.getElementById('appNoteForm-' + goalId);
+  if (!myAppNoteOpen[goalId]) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="sec-block" style="margin-top:8px">' +
+    '<label>How did you apply this in your daily life?</label>' +
+    '<textarea id="appNoteText-' + goalId + '" rows="2" placeholder="e.g. Today I prayed Fajr on time and reminded my brother too..."></textarea>' +
+    '<button class="btn btn-p btn-sm" style="margin-top:6px" onclick="saveApplicationNote(\'' + goalId + '\')">💾 Save</button></div>';
+}
+
+async function saveApplicationNote(goalId){
+  var text = document.getElementById('appNoteText-' + goalId).value.trim();
+  if (!text) return alert('Please write something first.');
+  var goal = myGoalsCache.find(function(g){ return g.id === goalId; });
+  var client = sbClient();
+  var { error } = await client.from('is_reflections').insert({
+    lesson_plan_id: goal ? goal.lesson_plan_id : null, goal_id: goalId, student_id: currentUser.id,
+    author_id: currentUser.id, author_role: 'student', reflection_text: text
+  });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Application recorded.');
+  myAppNoteOpen[goalId] = false;
+  loadMyGoals();
+  await checkAndAwardRewards(currentUser.id);
 }
 async function markGoalAchieved(id){
   var client = sbClient();
