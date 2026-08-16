@@ -2489,6 +2489,7 @@ async function generateReport(){
 
   var html = '<div class="card"><div class="metrics">' +
     '<div class="mc"><div class="mc-l">Outcomes Achieved</div><div class="mc-v">' + outcomesAchieved.length + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Outcomes Not Achieved</div><div class="mc-v">' + outcomesNotAchieved.length + '</div></div>' +
     '<div class="mc"><div class="mc-l">Goals Set</div><div class="mc-v">' + goals.length + '</div></div>' +
     '<div class="mc"><div class="mc-l">Goals Achieved</div><div class="mc-v">' + achieved.length + '</div></div>' +
     '<div class="mc"><div class="mc-l">Reflections</div><div class="mc-v">' + refl.length + '</div></div>' +
@@ -2523,7 +2524,7 @@ function exportReportPDF(){
   if (!lastReportData) return;
   var d = lastReportData;
   var html = '<h1>Achievement &amp; Reflection Report</h1><div class="pmeta">' + esc(d.student.full_name||d.student.email) + (d.from||d.to ? (' · ' + (d.from||'—') + ' to ' + (d.to||'—')) : '') + '</div>' +
-    '<div class="psec"><h3>Summary</h3><p>Outcomes achieved: ' + d.outcomesAchieved.length + ' | Goals set: ' + d.goals.length + ' | Achieved: ' + d.achieved.length + ' | Reflections: ' + d.reflections.length + ' | Hasanat: ' + d.points + '</p></div>' +
+    '<div class="psec"><h3>Summary</h3><p>Outcomes achieved: ' + d.outcomesAchieved.length + ' | Outcomes not achieved: ' + d.outcomesNotAchieved.length + ' | Goals set: ' + d.goals.length + ' | Achieved: ' + d.achieved.length + ' | Reflections: ' + d.reflections.length + ' | Hasanat: ' + d.points + '</p></div>' +
     '<div class="psec"><h3>Outcomes Achieved</h3><p>' + (d.outcomesAchieved.map(function(o){ return '• ' + esc(o.learning_outcome) + ' (' + fmtDate(o.marked_at) + ')'; }).join('\n')||'None') + '</p></div>' +
     '<div class="psec"><h3>Outcomes Not Yet Achieved</h3><p>' + (d.outcomesNotAchieved.map(function(o){ return '• ' + esc(o.learning_outcome); }).join('\n')||'None') + '</p></div>' +
     '<div class="psec"><h3>Goals</h3><p>' + (d.goals.map(function(g){ return '• [' + g.status + '] ' + esc(g.goal_text); }).join('\n')||'None') + '</p></div>' +
@@ -2540,7 +2541,7 @@ async function exportReportDocx(){
     var children = [
       new D.Paragraph({ spacing:{after:60}, children:[ new D.TextRun({ text:'Achievement & Reflection Report', bold:true, size:36, color:'1A1A2E' }) ] }),
       new D.Paragraph({ spacing:{after:240}, children:[ new D.TextRun({ text:(d.student.full_name||d.student.email) + (d.from||d.to ? (' — ' + (d.from||'—') + ' to ' + (d.to||'—')) : ''), italics:true, color:'6B6258' }) ] }),
-      new D.Paragraph({ spacing:{after:200}, children:[ new D.TextRun({ text:'Outcomes achieved: ' + d.outcomesAchieved.length + '   Goals set: ' + d.goals.length + '   Achieved: ' + d.achieved.length + '   Reflections: ' + d.reflections.length + '   Hasanat: ' + d.points, bold:true }) ] })
+      new D.Paragraph({ spacing:{after:200}, children:[ new D.TextRun({ text:'Outcomes achieved: ' + d.outcomesAchieved.length + '   Outcomes not achieved: ' + d.outcomesNotAchieved.length + '   Goals set: ' + d.goals.length + '   Achieved: ' + d.achieved.length + '   Reflections: ' + d.reflections.length + '   Hasanat: ' + d.points, bold:true }) ] })
     ];
     function heading(t){ children.push(new D.Paragraph({ spacing:{before:200,after:80}, children:[ new D.TextRun({ text:t, bold:true, size:26, color:'5B8C3E' }) ] })); }
     heading('Outcomes Achieved');
