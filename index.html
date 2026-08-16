@@ -510,6 +510,49 @@ textarea{resize:vertical}
       <div class="card"><div id="savedPlansList"><div class="empty">No saved plans yet.</div></div></div>
     </div>
 
+    <!-- ===== FACILITATOR: ASSIGNMENTS & TARGETS ===== -->
+    <div class="page" id="page-assignments">
+      <div class="pg-title">Assignments &amp; Targets</div>
+      <div class="pg-sub">Assign lesson plans to a class, mark them implemented with outcome tracking, and set targets to work toward.</div>
+      <div class="metrics" id="asgMetrics"></div>
+
+      <div class="tabs">
+        <div class="tab on" onclick="switchInnerTab('asg',this,'assignments')">📋 Assignments</div>
+        <div class="tab" onclick="switchInnerTab('asg',this,'targets')">🎯 Targets</div>
+      </div>
+
+      <div class="tab-pane on" id="asg-assignments">
+        <div class="card">
+          <div class="card-t"><div class="ci">➕</div>Assign a Plan</div>
+          <div class="fg">
+            <div class="fg1"><label>Lesson Plan</label><select id="asgPlanSelect"></select></div>
+            <div class="fg1"><label>Class / Group</label><input id="asgClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
+          </div>
+          <div class="fg1"><label>Due Date (optional)</label><input type="date" id="asgDueDate"></div>
+          <button class="btn btn-p btn-sm" onclick="createAssignment()">➕ Assign</button>
+        </div>
+        <div class="card">
+          <div class="fg"><div class="fg1"><label>Filter by Class</label><input id="asgClassFilter" placeholder="Leave blank for all classes" oninput="renderAssignmentsList()"></div>
+          <div class="fg1"><label>&nbsp;</label><button class="btn btn-s btn-sm" style="width:100%;justify-content:center" onclick="exportClassReport()">🖨️ Export Class Report</button></div></div>
+        </div>
+        <div class="card"><div id="asgList"><div class="empty">No assignments yet.</div></div></div>
+      </div>
+
+      <div class="tab-pane" id="asg-targets">
+        <div class="card">
+          <div class="card-t"><div class="ci">🎯</div>New Target</div>
+          <div class="fg1"><label>Title</label><input id="tgtTitle" placeholder="e.g. 90% mastery of the Five Pillars by end of term"></div>
+          <div class="fg">
+            <div class="fg1"><label>Curriculum (optional)</label><select id="tgtCurriculum"><option value="">—</option></select></div>
+            <div class="fg1"><label>Class / Group</label><input id="tgtClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
+          </div>
+          <div class="fg1"><label>Target Date (optional)</label><input type="date" id="tgtDate"></div>
+          <button class="btn btn-p btn-sm" onclick="createTarget()">➕ Set Target</button>
+        </div>
+        <div class="card"><div id="tgtList"><div class="empty">No targets yet.</div></div></div>
+      </div>
+    </div>
+
     <!-- ===== FACILITATOR: STUDENTS & REWARDS ===== -->
     <div class="page" id="page-students">
       <div class="pg-title">Students &amp; Rewards</div>
@@ -890,6 +933,7 @@ var FAC_NAV = [
   {p:'formats', ic:'🧩', l:'Lesson Plan Formats'},
   {p:'generator', ic:'✨', l:'Generate Lesson Plan'},
   {p:'plans', ic:'💾', l:'Saved Plans'},
+  {p:'assignments', ic:'📋', l:'Assignments & Targets'},
   {p:'students', ic:'🎓', l:'Students & Rewards'},
   {p:'reports', ic:'📊', l:'Reports'}
 ];
@@ -935,6 +979,7 @@ function goPage(id){
   document.getElementById('mainArea').scrollTop = 0;
 
   if (id === 'plans') loadSavedPlans();
+  if (id === 'assignments') loadAssignmentsPage();
   if (id === 'students') loadStudentsPage();
   if (id === 'reports') loadReportsPage();
   if (id === 'my-goals') loadMyGoals();
@@ -1744,6 +1789,170 @@ async function deletePlanRow(id){
   toast('Plan deleted.');
   loadSavedPlans();
   refreshOverviewStats();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ASSIGNMENTS & TARGETS
+// ════════════════════════════════════════════════════════════════════════
+var assignmentsCache = [];
+var targetsCache = [];
+var assignPlansCache = [];
+
+async function loadAssignmentsPage(){
+  var client = sbClient();
+  var [plansRes, asgRes, tgtRes] = await Promise.all([
+    client.from('is_lesson_plans').select('id,title,learning_outcomes').eq('status', 'final').order('title'),
+    client.from('is_plan_assignments').select('*, is_lesson_plans(title,learning_outcomes)').order('created_at', {ascending:false}),
+    client.from('is_targets').select('*').order('created_at', {ascending:false})
+  ]);
+  assignPlansCache = plansRes.data || [];
+  assignmentsCache = asgRes.data || [];
+  targetsCache = tgtRes.data || [];
+
+  document.getElementById('asgPlanSelect').innerHTML = '<option value="">— Select a plan —</option>' +
+    assignPlansCache.map(function(p){ return '<option value="' + p.id + '">' + esc(p.title) + '</option>'; }).join('');
+  document.getElementById('tgtCurriculum').innerHTML = '<option value="">—</option>' +
+    curriculaCache.map(function(c){ return '<option value="' + c.id + '">' + esc(c.title) + '</option>'; }).join('');
+
+  var assigned = assignmentsCache.filter(function(a){ return a.status === 'assigned'; }).length;
+  var implemented = assignmentsCache.filter(function(a){ return a.status === 'implemented'; }).length;
+  var missed = assignmentsCache.filter(function(a){ return a.status === 'missed'; }).length;
+  var targetsActive = targetsCache.filter(function(t){ return t.status === 'active'; }).length;
+  var targetsAchieved = targetsCache.filter(function(t){ return t.status === 'achieved'; }).length;
+  document.getElementById('asgMetrics').innerHTML =
+    '<div class="mc"><div class="mc-l">Assigned</div><div class="mc-v">' + assigned + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Implemented</div><div class="mc-v">' + implemented + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Missed</div><div class="mc-v">' + missed + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Active Targets</div><div class="mc-v">' + targetsActive + '</div></div>' +
+    '<div class="mc"><div class="mc-l">Targets Achieved</div><div class="mc-v">' + targetsAchieved + '</div></div>';
+
+  renderAssignmentsList();
+  renderTargetsList();
+}
+
+async function createAssignment(){
+  var planId = document.getElementById('asgPlanSelect').value;
+  var className = document.getElementById('asgClass').value.trim();
+  var dueDate = document.getElementById('asgDueDate').value || null;
+  if (!planId) return alert('Please select a lesson plan.');
+  if (!className) return alert('Please enter a class/group.');
+  var { error } = await sbClient().from('is_plan_assignments').insert({ lesson_plan_id: planId, class_name: className, due_date: dueDate, created_by: currentUser.id });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Plan assigned.');
+  document.getElementById('asgClass').value = '';
+  document.getElementById('asgDueDate').value = '';
+  loadAssignmentsPage();
+  refreshOverviewStats();
+}
+
+function renderAssignmentsList(){
+  var filter = document.getElementById('asgClassFilter').value.trim().toLowerCase();
+  var rows = assignmentsCache.filter(function(a){ return !filter || (a.class_name||'').toLowerCase().indexOf(filter) >= 0; });
+  var el = document.getElementById('asgList');
+  if (!rows.length) { el.innerHTML = '<div class="empty">No assignments yet.</div>'; return; }
+  el.innerHTML = rows.map(function(a){
+    var planTitle = (a.is_lesson_plans && a.is_lesson_plans.title) || 'Untitled plan';
+    var statusPill = a.status === 'implemented' ? 'pill-final' : a.status === 'missed' ? 'pill-missed' : 'pill-active';
+    var achieved = (a.outcomes_achieved||[]).filter(function(o){ return o.achieved; }).length;
+    var total = (a.outcomes_achieved||[]).length;
+    return '<div class="list-item" style="flex-direction:column;align-items:stretch">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
+      '<div><strong>' + esc(planTitle) + '</strong><br><span style="font-size:11.5px;color:var(--inkl)">' + esc(a.class_name) + (a.due_date ? ' · Due ' + fmtDate(a.due_date) : '') + '</span>' +
+      (a.status === 'implemented' && total ? '<br><span style="font-size:11px;color:var(--g);font-weight:700">✅ ' + achieved + '/' + total + ' outcomes achieved</span>' : '') + '</div>' +
+      '<div style="text-align:right"><span class="pill ' + statusPill + '">' + a.status + '</span>' +
+      '<div class="btn-row">' +
+      (a.status === 'assigned' ? '<button class="btn btn-p btn-sm" onclick="toggleImplementForm(\'' + a.id + '\')">✅ Mark Implemented</button><button class="btn btn-s btn-sm" onclick="markAssignmentMissed(\'' + a.id + '\')">🚫 Missed</button>' : '') +
+      '<button class="btn btn-d btn-sm" onclick="deleteAssignment(\'' + a.id + '\')">🗑</button></div></div></div>' +
+      '<div id="implForm-' + a.id + '"></div></div>';
+  }).join('');
+}
+
+function toggleImplementForm(id){
+  var el = document.getElementById('implForm-' + id);
+  if (el.innerHTML) { el.innerHTML = ''; return; }
+  var a = assignmentsCache.find(function(x){ return x.id === id; });
+  var outcomes = (a && a.is_lesson_plans && a.is_lesson_plans.learning_outcomes) || [];
+  el.innerHTML = '<div class="sec-block" style="margin-top:10px">' +
+    '<label>Which learning outcomes were achieved?</label>' +
+    (outcomes.length ? outcomes.map(function(o){ return '<label style="display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0;margin-top:4px"><input type="checkbox" class="implOutcome-' + id + '" value="' + esc(o) + '" checked style="width:auto"> ' + esc(o) + '</label>'; }).join('') : '<p class="hint">This plan has no recorded learning outcomes.</p>') +
+    '<div class="fg1" style="margin-top:8px"><label>Notes (optional)</label><textarea id="implNotes-' + id + '" rows="2"></textarea></div>' +
+    '<button class="btn btn-p btn-sm" onclick="submitImplementation(\'' + id + '\')">💾 Save Implementation</button></div>';
+}
+
+async function submitImplementation(id){
+  var checks = document.querySelectorAll('.implOutcome-' + id);
+  var outcomes = Array.prototype.map.call(checks, function(c){ return { outcome: c.value, achieved: c.checked }; });
+  var notesEl = document.getElementById('implNotes-' + id);
+  var { error } = await sbClient().from('is_plan_assignments').update({
+    status: 'implemented', implemented_at: new Date().toISOString(), outcomes_achieved: outcomes, notes: notesEl ? notesEl.value.trim() : ''
+  }).eq('id', id);
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Marked as implemented.');
+  loadAssignmentsPage();
+}
+async function markAssignmentMissed(id){
+  await sbClient().from('is_plan_assignments').update({ status: 'missed' }).eq('id', id);
+  toast('Marked as missed.');
+  loadAssignmentsPage();
+}
+async function deleteAssignment(id){
+  if (!confirm('Delete this assignment?')) return;
+  await sbClient().from('is_plan_assignments').delete().eq('id', id);
+  toast('Assignment deleted.');
+  loadAssignmentsPage();
+}
+
+async function createTarget(){
+  var title = document.getElementById('tgtTitle').value.trim();
+  var curId = document.getElementById('tgtCurriculum').value || null;
+  var className = document.getElementById('tgtClass').value.trim();
+  var targetDate = document.getElementById('tgtDate').value || null;
+  if (!title) return alert('Please enter a target title.');
+  if (!className) return alert('Please enter a class/group.');
+  var { error } = await sbClient().from('is_targets').insert({ title: title, curriculum_id: curId, class_name: className, target_date: targetDate, created_by: currentUser.id });
+  if (error) return toast('Error: ' + error.message, 'err');
+  toast('Target set.');
+  document.getElementById('tgtTitle').value = '';
+  document.getElementById('tgtClass').value = '';
+  document.getElementById('tgtDate').value = '';
+  loadAssignmentsPage();
+}
+function renderTargetsList(){
+  var el = document.getElementById('tgtList');
+  if (!targetsCache.length) { el.innerHTML = '<div class="empty">No targets yet.</div>'; return; }
+  el.innerHTML = targetsCache.map(function(t){
+    var statusPill = t.status === 'achieved' ? 'pill-final' : t.status === 'missed' ? 'pill-missed' : 'pill-active';
+    return '<div class="list-item"><div><strong>' + esc(t.title) + '</strong><br><span style="font-size:11.5px;color:var(--inkl)">' + esc(t.class_name) + (t.target_date ? ' · By ' + fmtDate(t.target_date) : '') + '</span></div>' +
+      '<div style="text-align:right"><span class="pill ' + statusPill + '">' + t.status + '</span>' +
+      (t.status === 'active' ? '<div class="btn-row"><button class="btn btn-p btn-sm" onclick="setTargetStatus(\'' + t.id + '\',\'achieved\')">✅ Achieved</button><button class="btn btn-s btn-sm" onclick="setTargetStatus(\'' + t.id + '\',\'missed\')">🚫 Missed</button></div>' : '') +
+      '<button class="btn btn-d btn-sm" style="margin-top:4px" onclick="deleteTarget(\'' + t.id + '\')">🗑</button></div></div>';
+  }).join('');
+}
+async function setTargetStatus(id, status){
+  await sbClient().from('is_targets').update({ status: status }).eq('id', id);
+  toast('Target updated.');
+  loadAssignmentsPage();
+}
+async function deleteTarget(id){
+  if (!confirm('Delete this target?')) return;
+  await sbClient().from('is_targets').delete().eq('id', id);
+  toast('Target deleted.');
+  loadAssignmentsPage();
+}
+
+function exportClassReport(){
+  var filter = document.getElementById('asgClassFilter').value.trim();
+  if (!filter) return alert('Please enter a class name in the filter field above to export a report for that class.');
+  var lower = filter.toLowerCase();
+  var asg = assignmentsCache.filter(function(a){ return (a.class_name||'').toLowerCase().indexOf(lower) >= 0; });
+  var tgt = targetsCache.filter(function(t){ return (t.class_name||'').toLowerCase().indexOf(lower) >= 0; });
+  var implemented = asg.filter(function(a){ return a.status === 'implemented'; });
+  var html = '<h1>Class Report — ' + esc(filter) + '</h1><div class="pmeta">' + new Date().toLocaleDateString() + '</div>' +
+    '<div class="psec"><h3>Summary</h3><p>Assigned: ' + asg.length + ' | Implemented: ' + implemented.length + ' | Targets: ' + tgt.length + '</p></div>' +
+    '<div class="psec"><h3>Assignments</h3><p>' + (asg.map(function(a){ return '• [' + a.status + '] ' + ((a.is_lesson_plans && a.is_lesson_plans.title) || 'Untitled') + (a.due_date ? (' — due ' + fmtDate(a.due_date)) : ''); }).join('\n') || 'None') + '</p></div>' +
+    '<div class="psec"><h3>Targets</h3><p>' + (tgt.map(function(t){ return '• [' + t.status + '] ' + t.title; }).join('\n') || 'None') + '</p></div>';
+  document.getElementById('printArea').innerHTML = html;
+  window.print();
 }
 
 // ════════════════════════════════════════════════════════════════════════
