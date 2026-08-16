@@ -437,6 +437,7 @@ textarea{resize:vertical}
           <div class="fg1"><label>Grade / Age Group (optional)</label><input id="genGrade" placeholder="e.g. Grade 6, ages 11-12"></div>
           <div class="fg1"><label>Target Class (optional — leave blank to show all students)</label><input id="genClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
         </div>
+        <div class="fg1"><label>Time Frame / Duration (optional)</label><input id="genDuration" placeholder="e.g. 45 minutes, or 2 class periods"></div>
         <div class="fg1"><label>Learning Outcomes (one per line)</label><textarea id="genOutcomes" rows="4" placeholder="Students will be able to..."></textarea></div>
       </div>
 
@@ -1563,6 +1564,7 @@ async function generateLessonPlan(){
   var title = document.getElementById('genTitle').value.trim();
   var grade = document.getElementById('genGrade').value.trim();
   var targetClass = document.getElementById('genClass').value.trim();
+  var duration = document.getElementById('genDuration').value.trim();
   var outcomes = document.getElementById('genOutcomes').value.trim();
   var pasted = document.getElementById('genContent').value.trim();
   var fmt = formatsCache.find(function(f){ return f.id === selectedFormatId; });
@@ -1597,8 +1599,10 @@ async function generateLessonPlan(){
     var usr = 'Write a complete, classroom-ready Islamic Studies lesson plan.\n\n' +
       'Lesson/Topic Title: ' + title + '\n' +
       (grade ? ('Grade / Age Group: ' + grade + '\n') : '') +
+      (duration ? ('Time Frame / Duration: ' + duration + '\n') : '') +
       (outcomes ? ('Learning Outcomes:\n' + outcomes + '\n') : '') +
       '\n--- CONTENT / TOPICS TO TEACH ---\n' + content + '\n--- END ---\n\n' +
+      (duration ? ('Pace and scope every activity so the whole lesson realistically fits within ' + duration + ' — do not overload it with more than can be taught in that time.\n\n') : '') +
       (tbCite ? ('This lesson is based on "' + genTextbookExcerpt.title + '", pages ' + genTextbookExcerpt.pageStart + '-' + genTextbookExcerpt.pageEnd + '. Explicitly reference these page numbers where relevant in the plan (e.g. in the content/resources section, tell students/teachers to read pages ' + genTextbookExcerpt.pageStart + '-' + genTextbookExcerpt.pageEnd + ' of the textbook).\n\n') : '') +
       'You MUST fill EVERY one of the following sections, in this exact order, using the guidance given for each. Ground everything in the learning outcomes and the content provided above — do not invent unrelated material.\n\n' + sectionsSpec + '\n\n' +
       'Return a JSON array with exactly ' + fmt.sections.length + ' elements, one per section above, each with exactly these keys: "key" (matching the key given above exactly), "text" (the full section content, well-written, ready to use in a classroom, using line breaks between distinct points where useful).';
@@ -1614,7 +1618,7 @@ async function generateLessonPlan(){
     currentGeneration = {
       id: null, title: title, chapter_name: title, curriculum_id: curId || null, chapter_id: chId || null,
       format_id: fmt.id, learning_outcomes: outcomes.split('\n').map(function(s){return s.trim();}).filter(Boolean),
-      source_content: content, target_class: targetClass, status: 'draft', sections: sections
+      source_content: content, target_class: targetClass, duration: duration, status: 'draft', sections: sections
     };
     renderGenPreview();
     document.getElementById('genPreviewWrap').style.display = 'block';
@@ -1666,7 +1670,7 @@ async function savePlan(status){
     curriculum_id: currentGeneration.curriculum_id, chapter_id: currentGeneration.chapter_id,
     format_id: currentGeneration.format_id, title: currentGeneration.title, chapter_name: currentGeneration.chapter_name,
     learning_outcomes: currentGeneration.learning_outcomes, source_content: currentGeneration.source_content,
-    target_class: currentGeneration.target_class, generated_sections: currentGeneration.sections,
+    target_class: currentGeneration.target_class, duration: currentGeneration.duration, generated_sections: currentGeneration.sections,
     status: status, created_by: currentUser.id
   };
   var res = currentGeneration.id
@@ -1692,9 +1696,9 @@ async function loadSavedPlans(){
   if (error) { toast('Error: ' + error.message, 'err'); return; }
   var el = document.getElementById('savedPlansList');
   if (!data || !data.length) { el.innerHTML = '<div class="empty">No saved plans yet.</div>'; return; }
-  el.innerHTML = '<div class="twrap"><table class="tbl"><thead><tr><th>Title</th><th>Class</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead><tbody>' +
+  el.innerHTML = '<div class="twrap"><table class="tbl"><thead><tr><th>Title</th><th>Class</th><th>Duration</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead><tbody>' +
     data.map(function(p){
-      return '<tr><td><strong>' + esc(p.title) + '</strong></td><td>' + esc(p.target_class||'All') + '</td>' +
+      return '<tr><td><strong>' + esc(p.title) + '</strong></td><td>' + esc(p.target_class||'All') + '</td><td>' + esc(p.duration||'—') + '</td>' +
         '<td><span class="pill pill-' + p.status + '">' + p.status + '</span></td><td>' + fmtDate(p.updated_at) + '</td>' +
         '<td><div class="btn-row"><button class="btn btn-s btn-sm" onclick="openPlan(\'' + p.id + '\')">✏️ Open</button>' +
         '<button class="btn btn-d btn-sm" onclick="deletePlanRow(\'' + p.id + '\')">🗑</button></div></td></tr>';
@@ -1707,12 +1711,13 @@ async function openPlan(id){
   currentGeneration = {
     id: data.id, title: data.title, chapter_name: data.chapter_name, curriculum_id: data.curriculum_id,
     chapter_id: data.chapter_id, format_id: data.format_id, learning_outcomes: data.learning_outcomes || [],
-    source_content: data.source_content || '', target_class: data.target_class || '', status: data.status,
+    source_content: data.source_content || '', target_class: data.target_class || '', duration: data.duration || '', status: data.status,
     sections: data.generated_sections || []
   };
   goPage('generator');
   document.getElementById('genTitle').value = data.title;
   document.getElementById('genClass').value = data.target_class || '';
+  document.getElementById('genDuration').value = data.duration || '';
   document.getElementById('genOutcomes').value = (data.learning_outcomes||[]).join('\n');
   document.getElementById('genContent').value = data.source_content || '';
   if (data.curriculum_id) document.getElementById('genCurriculum').value = data.curriculum_id;
@@ -1733,7 +1738,7 @@ async function deletePlanRow(id){
 // ════════════════════════════════════════════════════════════════════════
 function exportPDF(plan){
   if (!plan) return alert('Nothing to export yet.');
-  var meta = [plan.chapter_name || plan.title, plan.target_class ? ('Class: ' + plan.target_class) : '', new Date().toLocaleDateString()].filter(Boolean).join(' · ');
+  var meta = [plan.chapter_name || plan.title, plan.target_class ? ('Class: ' + plan.target_class) : '', plan.duration ? ('Duration: ' + plan.duration) : '', new Date().toLocaleDateString()].filter(Boolean).join(' · ');
   var html = '<h1>' + esc(plan.title) + '</h1><div class="pmeta">' + esc(meta) + '</div>' +
     plan.sections.map(function(s){ return '<div class="psec"><h3>' + esc(s.label) + '</h3><p>' + esc(s.text) + '</p></div>'; }).join('');
   document.getElementById('printArea').innerHTML = html;
@@ -1747,7 +1752,7 @@ async function exportDocx(plan){
     var GREEN = '5B8C3E', DARK = '1A1A2E', GOLD = 'E8A020';
     var children = [];
     children.push(new D.Paragraph({ spacing:{after:60}, children:[ new D.TextRun({ text: plan.title, bold:true, size:40, font:'Calibri', color:DARK }) ] }));
-    var metaLine = [plan.chapter_name && plan.chapter_name !== plan.title ? plan.chapter_name : '', plan.target_class ? ('Class: ' + plan.target_class) : '', new Date().toLocaleDateString()].filter(Boolean).join('   |   ');
+    var metaLine = [plan.chapter_name && plan.chapter_name !== plan.title ? plan.chapter_name : '', plan.target_class ? ('Class: ' + plan.target_class) : '', plan.duration ? ('Duration: ' + plan.duration) : '', new Date().toLocaleDateString()].filter(Boolean).join('   |   ');
     if (metaLine) children.push(new D.Paragraph({ spacing:{after:260}, children:[ new D.TextRun({ text: metaLine, italics:true, size:20, color:'6B6258', font:'Calibri' }) ] }));
 
     plan.sections.forEach(function(s){
@@ -1775,7 +1780,7 @@ async function exportPptx(plan){
     var title = pptx.addSlide();
     title.background = { color:'1A1A2E' };
     title.addText(plan.title, { x:0.6, y:1.9, w:8.8, h:1.2, fontSize:32, bold:true, color:'FFFFFF', fontFace:'Calibri' });
-    var sub = [plan.chapter_name && plan.chapter_name !== plan.title ? plan.chapter_name : '', plan.target_class ? ('Class: ' + plan.target_class) : '', new Date().toLocaleDateString()].filter(Boolean).join('   |   ');
+    var sub = [plan.chapter_name && plan.chapter_name !== plan.title ? plan.chapter_name : '', plan.target_class ? ('Class: ' + plan.target_class) : '', plan.duration ? ('Duration: ' + plan.duration) : '', new Date().toLocaleDateString()].filter(Boolean).join('   |   ');
     title.addText(sub, { x:0.6, y:3.1, w:8.8, h:0.6, fontSize:14, color:'E8A030', fontFace:'Calibri' });
 
     plan.sections.forEach(function(s){
