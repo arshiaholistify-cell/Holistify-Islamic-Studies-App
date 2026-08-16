@@ -445,6 +445,7 @@ textarea{resize:vertical}
         <div class="tabs">
           <div class="tab on" onclick="switchInnerTab('gen',this,'paste')">📋 Paste</div>
           <div class="tab" onclick="switchInnerTab('gen',this,'upload')">📁 Upload</div>
+          <div class="tab" onclick="switchInnerTab('gen',this,'textbook')">📘 From Textbook</div>
         </div>
         <div class="tab-pane on" id="gen-paste"><textarea id="genContent" rows="8" placeholder="Paste the content, notes, textbook excerpt or list of topics to be taught..."></textarea></div>
         <div class="tab-pane" id="gen-upload">
@@ -453,6 +454,9 @@ textarea{resize:vertical}
             <div class="dz-icon">📄</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.pdf, .docx or .txt</div>
           </div>
           <div class="file-list" id="genFileList"></div>
+        </div>
+        <div class="tab-pane" id="gen-textbook">
+          <div id="genTbPicker"><p class="hint">Select a curriculum above first to choose from its uploaded textbooks.</p></div>
         </div>
       </div>
 
@@ -1440,7 +1444,12 @@ function onGenCurriculumChange(){
   var chSel = document.getElementById('genChapter');
   genTextbookExcerpt = null;
   document.getElementById('genTextbookCard').style.display = 'none';
-  if (!curId) { chSel.innerHTML = '<option value="">—</option>'; return; }
+  if (!curId) {
+    chSel.innerHTML = '<option value="">—</option>';
+    document.getElementById('genTbPicker').innerHTML = '<p class="hint">Select a curriculum above first to choose from its uploaded textbooks.</p>';
+    return;
+  }
+  renderGenTbPicker(curId);
   var chapters = chaptersCache[curId];
   var render = function(list){
     chSel.innerHTML = '<option value="">— Select a chapter —</option>' + list.map(function(c){ return '<option value="' + c.id + '">' + esc(c.title) + '</option>'; }).join('');
@@ -1477,6 +1486,54 @@ async function onGenChapterChange(){
     }
   }
 }
+async function renderGenTbPicker(curId){
+  var el = document.getElementById('genTbPicker');
+  var textbooks = textbooksCache[curId];
+  if (!textbooks) {
+    el.innerHTML = '<p class="hint">Loading textbooks…</p>';
+    var res = await sbClient().from('is_textbooks').select('id,title,page_count,created_at').eq('curriculum_id', curId).order('created_at');
+    textbooks = textbooksCache[curId] = res.data || [];
+  }
+  if (!textbooks.length) {
+    el.innerHTML = '<p class="hint">No textbooks uploaded for this curriculum yet — add one from the Curricula page first.</p>';
+    return;
+  }
+  el.innerHTML =
+    '<div class="fg1"><label>Textbook</label><select id="genTbSelect">' +
+      textbooks.map(function(t){ return '<option value="' + t.id + '">' + esc(t.title) + ' (' + t.page_count + ' pages)</option>'; }).join('') +
+    '</select></div>' +
+    '<div class="fg"><div class="fg1"><label>Page Start</label><input id="genTbPageStart" type="number" min="1" placeholder="e.g. 24"></div>' +
+    '<div class="fg1"><label>Page End</label><input id="genTbPageEnd" type="number" min="1" placeholder="e.g. 31"></div></div>' +
+    '<button class="btn btn-p btn-sm" onclick="loadTextbookPagesForGen()">📖 Load These Pages</button>' +
+    '<div id="genTbPickerStatus" class="hint" style="margin-top:8px"></div>';
+}
+
+async function loadTextbookPagesForGen(){
+  var tbId = document.getElementById('genTbSelect').value;
+  var pStart = parseInt(document.getElementById('genTbPageStart').value, 10);
+  var pEnd = parseInt(document.getElementById('genTbPageEnd').value, 10) || pStart;
+  if (!tbId) return alert('Please select a textbook.');
+  if (!pStart) return alert('Please enter at least a start page.');
+  if (pEnd < pStart) return alert('Page End must be greater than or equal to Page Start.');
+
+  document.getElementById('genTbPickerStatus').textContent = 'Loading…';
+  try {
+    var { data, error } = await sbClient().from('is_textbooks').select('title,pages').eq('id', tbId).single();
+    if (error) throw error;
+    var slice = (data.pages||[]).filter(function(p){ return p.page >= pStart && p.page <= pEnd; });
+    if (!slice.length) { document.getElementById('genTbPickerStatus').textContent = 'No pages found in that range.'; return; }
+    var text = slice.map(function(p){ return '[Page ' + p.page + ']\n' + p.text; }).join('\n\n');
+    genTextbookExcerpt = { title: data.title, pageStart: pStart, pageEnd: pEnd, text: text };
+    document.getElementById('genTextbookCard').style.display = 'block';
+    document.getElementById('genTextbookInfo').textContent = 'Linked to "' + data.title + '", pages ' + pStart + '–' + pEnd + ' (' + slice.length + ' page(s), ' + text.length.toLocaleString() + ' characters).';
+    document.getElementById('genTbPickerStatus').textContent = '✅ Loaded ' + slice.length + ' page(s) — see "Textbook Reference" below to include it in generation.';
+    toast('Loaded pages ' + pStart + '–' + pEnd + ' from "' + data.title + '".');
+  } catch(err) {
+    document.getElementById('genTbPickerStatus').textContent = '';
+    toast('Could not load pages: ' + err.message, 'err');
+  }
+}
+
 function onGenFormatChange(){
   selectedFormatId = document.getElementById('genFormat').value;
   var fmt = formatsCache.find(function(f){ return f.id === selectedFormatId; });
