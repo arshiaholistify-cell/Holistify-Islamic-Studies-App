@@ -1798,6 +1798,9 @@ async function deletePlanRow(id){
 var assignmentsCache = [];
 var targetsCache = [];
 var assignPlansCache = [];
+var implOpen = {};
+var implState = {};
+var implStudentsCache = {};
 
 async function loadAssignmentsPage(){
   var client = sbClient();
@@ -1877,8 +1880,8 @@ function renderAssignmentsList(){
     var planTitle = (a.is_lesson_plans && a.is_lesson_plans.title) || 'Untitled plan';
     var lahSection = a.is_lesson_plans && findLearningAtHomeSection(a.is_lesson_plans.generated_sections);
     var statusPill = a.status === 'implemented' ? 'pill-final' : a.status === 'missed' ? 'pill-missed' : 'pill-active';
-    var achieved = (a.outcomes_achieved||[]).filter(function(o){ return o.achieved; }).length;
-    var total = (a.outcomes_achieved||[]).length;
+    var achieved = 0, total = 0;
+    (a.outcomes_achieved||[]).forEach(function(stuRow){ (stuRow.outcomes||[]).forEach(function(o){ total++; if (o.achieved) achieved++; }); });
     return '<div class="list-item" style="flex-direction:column;align-items:stretch">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
       '<div><strong>' + esc(planTitle) + '</strong><br><span style="font-size:11.5px;color:var(--inkl)">' + esc(a.class_name) + (a.due_date ? ' · Due ' + fmtDate(a.due_date) : '') + '</span>' +
@@ -1892,27 +1895,85 @@ function renderAssignmentsList(){
   }).join('');
 }
 
-function toggleImplementForm(id){
+async function toggleImplementForm(id){
+  if (implOpen[id]) { implOpen[id] = false; document.getElementById('implForm-' + id).innerHTML = ''; return; }
+  implOpen[id] = true;
   var el = document.getElementById('implForm-' + id);
-  if (el.innerHTML) { el.innerHTML = ''; return; }
+  el.innerHTML = '<p class="hint" style="margin-top:10px">Loading students…</p>';
+
+  var a = assignmentsCache.find(function(x){ return x.id === id; });
+  if (!implStudentsCache[id]) {
+    var { data: students } = await sbClient().from('is_profiles').select('id,full_name').eq('role', 'student').eq('class_name', a.class_name).order('full_name');
+    implStudentsCache[id] = (students && students.length) ? students : [{ id: '_whole_class', full_name: 'Whole Class (no matching students found for "' + a.class_name + '")' }];
+  }
+  if (!implState[id]) {
+    implState[id] = {};
+    (a.outcomes_achieved || []).forEach(function(row){
+      implState[id][row.student_id] = {};
+      (row.outcomes || []).forEach(function(o, i){ implState[id][row.student_id][i] = o.achieved; });
+    });
+  }
+  renderImplementForm(id);
+}
+
+function setImplOutcome(id, studentId, outcomeIdx, achieved){
+  implState[id] = implState[id] || {};
+  implState[id][studentId] = implState[id][studentId] || {};
+  implState[id][studentId][outcomeIdx] = achieved;
+  renderImplementForm(id);
+}
+
+function renderImplementForm(id){
+  var el = document.getElementById('implForm-' + id);
   var a = assignmentsCache.find(function(x){ return x.id === id; });
   var outcomes = (a && a.is_lesson_plans && a.is_lesson_plans.learning_outcomes) || [];
+  var students = implStudentsCache[id] || [];
+  var existingNotes = document.getElementById('implNotes-' + id) ? document.getElementById('implNotes-' + id).value : (a.notes || '');
+
+  if (!outcomes.length) {
+    el.innerHTML = '<div class="sec-block" style="margin-top:10px"><p class="hint">This plan has no recorded learning outcomes to track.</p>' +
+      '<div class="fg1" style="margin-top:8px"><label>Notes (optional)</label><textarea id="implNotes-' + id + '" rows="2">' + esc(existingNotes) + '</textarea></div>' +
+      '<button class="btn btn-p btn-sm" onclick="submitImplementation(\'' + id + '\')">💾 Save Implementation</button></div>';
+    return;
+  }
+
   el.innerHTML = '<div class="sec-block" style="margin-top:10px">' +
-    '<label>Which learning outcomes were achieved?</label>' +
-    (outcomes.length ? outcomes.map(function(o){ return '<label style="display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0;margin-top:4px"><input type="checkbox" class="implOutcome-' + id + '" value="' + esc(o) + '" checked style="width:auto"> ' + esc(o) + '</label>'; }).join('') : '<p class="hint">This plan has no recorded learning outcomes.</p>') +
-    '<div class="fg1" style="margin-top:8px"><label>Notes (optional)</label><textarea id="implNotes-' + id + '" rows="2"></textarea></div>' +
-    '<button class="btn btn-p btn-sm" onclick="submitImplementation(\'' + id + '\')">💾 Save Implementation</button></div>';
+    '<label>Mark each student\'s achievement for every learning outcome</label>' +
+    students.map(function(stu){
+      return '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bdr)">' +
+        '<div style="font-weight:800;font-size:12.5px;color:var(--ink);margin-bottom:6px">' + esc(stu.full_name || 'Unnamed') + '</div>' +
+        outcomes.map(function(o, i){
+          var st = implState[id][stu.id] && implState[id][stu.id][i];
+          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap">' +
+            '<span style="font-size:12.5px;flex:1;min-width:150px">' + esc(o) + '</span>' +
+            '<div class="btn-row" style="margin-top:0">' +
+            '<button type="button" class="btn btn-sm ' + (st === true ? 'btn-p' : 'btn-s') + '" onclick="setImplOutcome(\'' + id + '\',\'' + stu.id + '\',' + i + ',true)">✅ Achieved</button>' +
+            '<button type="button" class="btn btn-sm ' + (st === false ? 'btn-d' : 'btn-s') + '" onclick="setImplOutcome(\'' + id + '\',\'' + stu.id + '\',' + i + ',false)">❌ Not Achieved</button>' +
+            '</div></div>';
+        }).join('') +
+        '</div>';
+    }).join('') +
+    '<div class="fg1" style="margin-top:10px"><label>Notes (optional)</label><textarea id="implNotes-' + id + '" rows="2">' + esc(existingNotes) + '</textarea></div>' +
+    '<button class="btn btn-p btn-sm" style="margin-top:8px" onclick="submitImplementation(\'' + id + '\')">💾 Save Implementation</button></div>';
 }
 
 async function submitImplementation(id){
-  var checks = document.querySelectorAll('.implOutcome-' + id);
-  var outcomes = Array.prototype.map.call(checks, function(c){ return { outcome: c.value, achieved: c.checked }; });
+  var a = assignmentsCache.find(function(x){ return x.id === id; });
+  var outcomes = (a && a.is_lesson_plans && a.is_lesson_plans.learning_outcomes) || [];
+  var students = implStudentsCache[id] || [];
   var notesEl = document.getElementById('implNotes-' + id);
+  var outcomesAchieved = students.map(function(stu){
+    return {
+      student_id: stu.id, student_name: stu.full_name,
+      outcomes: outcomes.map(function(o, i){ return { outcome: o, achieved: !!(implState[id][stu.id] && implState[id][stu.id][i]) }; })
+    };
+  });
   var { error } = await sbClient().from('is_plan_assignments').update({
-    status: 'implemented', implemented_at: new Date().toISOString(), outcomes_achieved: outcomes, notes: notesEl ? notesEl.value.trim() : ''
+    status: 'implemented', implemented_at: new Date().toISOString(), outcomes_achieved: outcomesAchieved, notes: notesEl ? notesEl.value.trim() : ''
   }).eq('id', id);
   if (error) return toast('Error: ' + error.message, 'err');
   toast('Marked as implemented.');
+  delete implOpen[id]; delete implState[id]; delete implStudentsCache[id];
   loadAssignmentsPage();
 }
 async function markAssignmentMissed(id){
