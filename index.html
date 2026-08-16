@@ -512,22 +512,23 @@ textarea{resize:vertical}
 
     <!-- ===== FACILITATOR: ASSIGNMENTS & TARGETS ===== -->
     <div class="page" id="page-assignments">
-      <div class="pg-title">Assignments &amp; Targets</div>
-      <div class="pg-sub">Assign lesson plans to a class, mark them implemented with outcome tracking, and set targets to work toward.</div>
+      <div class="pg-title">Learning at Home &amp; Targets</div>
+      <div class="pg-sub">Assign a lesson's Learning at Home content to a class, mark it implemented with outcome tracking, and set targets to work toward.</div>
       <div class="metrics" id="asgMetrics"></div>
 
       <div class="tabs">
-        <div class="tab on" onclick="switchInnerTab('asg',this,'assignments')">📋 Assignments</div>
+        <div class="tab on" onclick="switchInnerTab('asg',this,'assignments')">🏠 Learning at Home</div>
         <div class="tab" onclick="switchInnerTab('asg',this,'targets')">🎯 Targets</div>
       </div>
 
       <div class="tab-pane on" id="asg-assignments">
         <div class="card">
-          <div class="card-t"><div class="ci">➕</div>Assign a Plan</div>
+          <div class="card-t"><div class="ci">➕</div>Assign Learning at Home</div>
           <div class="fg">
-            <div class="fg1"><label>Lesson Plan</label><select id="asgPlanSelect"></select></div>
+            <div class="fg1"><label>Lesson</label><select id="asgPlanSelect" onchange="previewLearningAtHome()"></select></div>
             <div class="fg1"><label>Class / Group</label><input id="asgClass" placeholder="e.g. Grade 6 - Al-Furqan"></div>
           </div>
+          <div id="asgLahPreview"></div>
           <div class="fg1"><label>Due Date (optional)</label><input type="date" id="asgDueDate"></div>
           <button class="btn btn-p btn-sm" onclick="createAssignment()">➕ Assign</button>
         </div>
@@ -933,7 +934,7 @@ var FAC_NAV = [
   {p:'formats', ic:'🧩', l:'Lesson Plan Formats'},
   {p:'generator', ic:'✨', l:'Generate Lesson Plan'},
   {p:'plans', ic:'💾', l:'Saved Plans'},
-  {p:'assignments', ic:'📋', l:'Assignments & Targets'},
+  {p:'assignments', ic:'🏠', l:'Learning at Home'},
   {p:'students', ic:'🎓', l:'Students & Rewards'},
   {p:'reports', ic:'📊', l:'Reports'}
 ];
@@ -1365,7 +1366,7 @@ function newFormatBuilder(){
     {key:'hook', label:'Hook / Introduction', guidance:'An engaging opener connecting to students\' lives.'},
     {key:'main_activity', label:'Main Teaching Activity', guidance:'Core teaching content and activities, step by step.'},
     {key:'islamic_connection', label:'Islamic Values Connection', guidance:'How this links to akhlaq, Quran, or Sunnah.'},
-    {key:'application', label:'Real-Life Application', guidance:'How students can apply this lesson in daily life.'},
+    {key:'learning_at_home', label:'Learning at Home', guidance:'A take-home activity or reflection so students apply this lesson with their family at home.'},
     {key:'assessment', label:'Assessment / Check for Understanding', guidance:'How you will check learning happened.'},
     {key:'closing_dua', label:'Closing Reflection / Dua', guidance:'A short closing reflection or dua to end the lesson.'}
   ];
@@ -1801,8 +1802,8 @@ var assignPlansCache = [];
 async function loadAssignmentsPage(){
   var client = sbClient();
   var [plansRes, asgRes, tgtRes] = await Promise.all([
-    client.from('is_lesson_plans').select('id,title,learning_outcomes').eq('status', 'final').order('title'),
-    client.from('is_plan_assignments').select('*, is_lesson_plans(title,learning_outcomes)').order('created_at', {ascending:false}),
+    client.from('is_lesson_plans').select('id,title,learning_outcomes,generated_sections').eq('status', 'final').order('title'),
+    client.from('is_plan_assignments').select('*, is_lesson_plans(title,learning_outcomes,generated_sections)').order('created_at', {ascending:false}),
     client.from('is_targets').select('*').order('created_at', {ascending:false})
   ]);
   assignPlansCache = plansRes.data || [];
@@ -1830,11 +1831,33 @@ async function loadAssignmentsPage(){
   renderTargetsList();
 }
 
+function findLearningAtHomeSection(sections){
+  if (!sections || !sections.length) return null;
+  return sections.find(function(s){
+    var l = (s.label || s.key || '').toLowerCase();
+    return l.indexOf('learning') >= 0 && l.indexOf('home') >= 0;
+  }) || null;
+}
+
+function previewLearningAtHome(){
+  var planId = document.getElementById('asgPlanSelect').value;
+  var el = document.getElementById('asgLahPreview');
+  if (!planId) { el.innerHTML = ''; return; }
+  var plan = assignPlansCache.find(function(p){ return p.id === planId; });
+  var section = plan && findLearningAtHomeSection(plan.generated_sections);
+  if (!section) {
+    el.innerHTML = '<p class="hint" style="margin-top:8px">⚠️ This lesson\'s format has no "Learning at Home" section — nothing to preview or share for home learning.</p>';
+    return;
+  }
+  el.innerHTML = '<div class="sec-block" style="margin-top:10px"><div class="sec-lbl">🏠 ' + esc(section.label) + '</div>' +
+    '<p style="margin-top:6px;white-space:pre-wrap;font-size:13px">' + esc(section.text) + '</p></div>';
+}
+
 async function createAssignment(){
   var planId = document.getElementById('asgPlanSelect').value;
   var className = document.getElementById('asgClass').value.trim();
   var dueDate = document.getElementById('asgDueDate').value || null;
-  if (!planId) return alert('Please select a lesson plan.');
+  if (!planId) return alert('Please select a lesson.');
   if (!className) return alert('Please enter a class/group.');
   var { error } = await sbClient().from('is_plan_assignments').insert({ lesson_plan_id: planId, class_name: className, due_date: dueDate, created_by: currentUser.id });
   if (error) return toast('Error: ' + error.message, 'err');
@@ -1852,6 +1875,7 @@ function renderAssignmentsList(){
   if (!rows.length) { el.innerHTML = '<div class="empty">No assignments yet.</div>'; return; }
   el.innerHTML = rows.map(function(a){
     var planTitle = (a.is_lesson_plans && a.is_lesson_plans.title) || 'Untitled plan';
+    var lahSection = a.is_lesson_plans && findLearningAtHomeSection(a.is_lesson_plans.generated_sections);
     var statusPill = a.status === 'implemented' ? 'pill-final' : a.status === 'missed' ? 'pill-missed' : 'pill-active';
     var achieved = (a.outcomes_achieved||[]).filter(function(o){ return o.achieved; }).length;
     var total = (a.outcomes_achieved||[]).length;
@@ -1863,6 +1887,7 @@ function renderAssignmentsList(){
       '<div class="btn-row">' +
       (a.status === 'assigned' ? '<button class="btn btn-p btn-sm" onclick="toggleImplementForm(\'' + a.id + '\')">✅ Mark Implemented</button><button class="btn btn-s btn-sm" onclick="markAssignmentMissed(\'' + a.id + '\')">🚫 Missed</button>' : '') +
       '<button class="btn btn-d btn-sm" onclick="deleteAssignment(\'' + a.id + '\')">🗑</button></div></div></div>' +
+      (lahSection ? '<div class="sec-block" style="margin-top:8px"><div class="sec-lbl">🏠 ' + esc(lahSection.label) + '</div><p style="margin-top:6px;white-space:pre-wrap;font-size:12.5px">' + esc(lahSection.text) + '</p></div>' : '') +
       '<div id="implForm-' + a.id + '"></div></div>';
   }).join('');
 }
