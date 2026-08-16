@@ -14,6 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
 <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -400,8 +401,8 @@ textarea{resize:vertical}
             <div class="tab-pane on" id="fmt-paste"><textarea id="fmtSampleText" rows="10" placeholder="Paste a sample lesson plan here..."></textarea></div>
             <div class="tab-pane" id="fmt-upload">
               <div class="dz" id="fmtDropZone">
-                <input type="file" id="fmtFileInput" multiple accept=".docx,.txt,.doc" onchange="handleFmtFiles(this.files)">
-                <div class="dz-icon">📄</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.docx or .txt</div>
+                <input type="file" id="fmtFileInput" multiple accept=".pdf,.docx,.txt,.doc" onchange="handleFmtFiles(this.files)">
+                <div class="dz-icon">📄</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.pdf, .docx or .txt</div>
               </div>
               <div class="file-list" id="fmtFileList"></div>
             </div>
@@ -448,11 +449,18 @@ textarea{resize:vertical}
         <div class="tab-pane on" id="gen-paste"><textarea id="genContent" rows="8" placeholder="Paste the content, notes, textbook excerpt or list of topics to be taught..."></textarea></div>
         <div class="tab-pane" id="gen-upload">
           <div class="dz" id="genDropZone">
-            <input type="file" id="genFileInput" multiple accept=".docx,.txt,.doc" onchange="handleGenFiles(this.files)">
-            <div class="dz-icon">📄</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.docx or .txt</div>
+            <input type="file" id="genFileInput" multiple accept=".pdf,.docx,.txt,.doc" onchange="handleGenFiles(this.files)">
+            <div class="dz-icon">📄</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.pdf, .docx or .txt</div>
           </div>
           <div class="file-list" id="genFileList"></div>
         </div>
+      </div>
+
+      <div class="card" id="genTextbookCard" style="display:none">
+        <div class="card-t"><div class="ci">📘</div>Textbook Reference</div>
+        <div id="genTextbookInfo" class="hint"></div>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0"><input type="checkbox" id="genTbInclude" checked style="width:auto"> Include these pages as reference content for the AI</label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0;margin-top:6px"><input type="checkbox" id="genTbCite" checked style="width:auto"> Cite the page numbers in the generated lesson plan</label>
       </div>
 
       <div class="card">
@@ -609,6 +617,7 @@ var currentUser = null;      // is_profiles row
 var currentSession = null;
 var curriculaCache = [];
 var chaptersCache = {};      // curriculumId -> [chapters]
+var textbooksCache = {};     // curriculumId -> [textbooks]
 var formatsCache = [];
 var selectedCurriculumId = null;
 var selectedFormatId = null;
@@ -676,6 +685,35 @@ async function readFileAsText(file){
     return result.value;
   }
   return await file.text();
+}
+
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
+
+// Returns [{page, text}] — real per-page text for PDFs, single "page 1" for everything else.
+async function readFileAsPages(file){
+  if (file.name.toLowerCase().endsWith('.pdf')) {
+    var buf = await file.arrayBuffer();
+    var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    var pages = [];
+    for (var i = 1; i <= pdf.numPages; i++) {
+      var page = await pdf.getPage(i);
+      var content = await page.getTextContent();
+      var text = content.items.map(function(it){ return it.str; }).join(' ');
+      pages.push({ page: i, text: text });
+    }
+    return pages;
+  }
+  var text = await readFileAsText(file);
+  return [{ page: 1, text: text }];
+}
+
+// Flattened text for uses that don't need per-page structure (still supports PDF now).
+async function readFileAsFlatText(file){
+  if (file.name.toLowerCase().endsWith('.pdf')) {
+    var pages = await readFileAsPages(file);
+    return pages.map(function(p){ return '[Page ' + p.page + ']\n' + p.text; }).join('\n\n');
+  }
+  return await readFileAsText(file);
 }
 
 function switchInnerTab(scope, el, name){
@@ -1041,32 +1079,57 @@ async function selectCurriculum(id){
   var { data, error } = await client.from('is_curriculum_chapters').select('*').eq('curriculum_id', id).order('sequence');
   if (error) { toast('Error: ' + error.message, 'err'); return; }
   chaptersCache[id] = data || [];
+  var { data: tbData, error: tbErr } = await client.from('is_textbooks').select('id,title,page_count,created_at').eq('curriculum_id', id).order('created_at');
+  if (tbErr) { toast('Error: ' + tbErr.message, 'err'); return; }
+  textbooksCache[id] = tbData || [];
   renderCurriculumDetail(cur, data || []);
 }
 
 function renderCurriculumDetail(cur, chapters){
+  var textbooks = textbooksCache[cur.id] || [];
+
   var html = '<div class="card">' +
+    '<div class="card-t"><div class="ci">📚</div>Textbooks</div>' +
+    '<p class="hint">Upload the textbook (PDF keeps real page numbers — .docx/.txt are treated as one page). Link a chapter to a page range below so the generator can pull the exact pages and cite them.</p>' +
+    '<div class="fg1"><label>Textbook Title</label><input id="tbTitle" placeholder="e.g. Grade 6 Islamic Studies Textbook"></div>' +
+    '<div class="dz" id="tbDropZone"><input type="file" id="tbFileInput" accept=".pdf,.docx,.txt,.doc" onchange="handleTextbookFile(this.files)"><div class="dz-icon">📘</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.pdf, .docx or .txt</div></div>' +
+    '<div id="tbFileStatus"></div>' +
+    '<button class="btn btn-p btn-sm" style="margin-top:8px" onclick="uploadTextbook()"><span class="spin" id="tbUploadSpin"></span><span id="tbUploadTxt">📘 Save Textbook</span></button>' +
+    '<div class="divider"></div><label>Uploaded Textbooks (' + textbooks.length + ')</label>' +
+    (textbooks.length ? textbooks.map(function(t){
+      return '<div class="list-item"><div><strong>' + esc(t.title) + '</strong><br><span style="font-size:11.5px;color:var(--inkl)">' + t.page_count + ' page(s)</span></div>' +
+        '<button class="btn btn-d btn-sm" onclick="deleteTextbook(\'' + t.id + '\',\'' + cur.id + '\')">🗑</button></div>';
+    }).join('') : '<div class="empty">No textbooks yet.</div>') +
+    '</div>';
+
+  html += '<div class="card">' +
     '<div class="card-t"><div class="ci">📖</div>' + esc(cur.title) + '</div>';
 
   html += '<div class="tabs"><div class="tab on" onclick="switchInnerTab(\'ch\',this,\'manual\')">✍️ Add Manually</div><div class="tab" onclick="switchInnerTab(\'ch\',this,\'ai\')">🤖 Extract from Document</div></div>';
 
+  var tbOptions = '<option value="">— No textbook link —</option>' + textbooks.map(function(t){ return '<option value="' + t.id + '">' + esc(t.title) + ' (' + t.page_count + ' pages)</option>'; }).join('');
+
   html += '<div class="tab-pane on" id="ch-manual">' +
     '<div class="fg1"><label>Chapter Title</label><input id="chTitle" placeholder="e.g. Chapter 3: The Five Pillars"></div>' +
     '<div class="fg1"><label>Learning Outcomes (one per line)</label><textarea id="chLOs" rows="4" placeholder="Students will be able to..."></textarea></div>' +
+    '<div class="fg1"><label>Textbook (optional)</label><select id="chTextbook">' + tbOptions + '</select></div>' +
+    '<div class="fg"><div class="fg1"><label>Page Start</label><input id="chPageStart" type="number" min="1" placeholder="e.g. 24"></div><div class="fg1"><label>Page End</label><input id="chPageEnd" type="number" min="1" placeholder="e.g. 31"></div></div>' +
     '<button class="btn btn-p btn-sm" onclick="addChapterManual()">➕ Add Chapter</button></div>';
 
   html += '<div class="tab-pane" id="ch-ai">' +
     '<p class="hint">Paste your syllabus/textbook table of contents, or upload a document. Claude will structure it into chapters with learning outcomes for you to review before saving.</p>' +
     '<div class="tabs"><div class="tab on" onclick="switchInnerTab(\'chx\',this,\'paste\')">📋 Paste</div><div class="tab" onclick="switchInnerTab(\'chx\',this,\'upload\')">📁 Upload</div></div>' +
     '<div class="tab-pane on" id="chx-paste"><textarea id="chExtractText" rows="8" placeholder="Paste syllabus text..."></textarea></div>' +
-    '<div class="tab-pane" id="chx-upload"><div class="dz" id="chDropZone"><input type="file" id="chFileInput" multiple accept=".docx,.txt,.doc" onchange="handleChFiles(this.files)"><div class="dz-icon">📄</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.docx or .txt</div></div><div class="file-list" id="chFileList"></div></div>' +
+    '<div class="tab-pane" id="chx-upload"><div class="dz" id="chDropZone"><input type="file" id="chFileInput" multiple accept=".pdf,.docx,.txt,.doc" onchange="handleChFiles(this.files)"><div class="dz-icon">📄</div><div class="dz-t">Drop file or click to browse</div><div class="dz-s">.pdf, .docx or .txt</div></div><div class="file-list" id="chFileList"></div></div>' +
     '<button class="btn btn-p btn-sm" style="margin-top:8px" onclick="extractChapters()"><span class="spin" id="chExtractSpin"></span><span id="chExtractTxt">🔍 Extract Chapters</span></button>' +
     '<div id="chExtractReview"></div></div>';
 
   html += '<div class="divider"></div><label>Chapters (' + chapters.length + ')</label>';
   html += chapters.length ? chapters.map(function(ch){
     var los = (ch.learning_outcomes||[]).map(function(lo){ return '<span class="chip">' + esc(lo) + '</span>'; }).join('');
-    return '<div class="list-item"><div><strong>' + esc(ch.title) + '</strong><div style="margin-top:6px">' + los + '</div></div>' +
+    var tb = ch.textbook_id ? textbooks.find(function(t){ return t.id === ch.textbook_id; }) : null;
+    var tbLine = tb ? '<div style="margin-top:5px;font-size:11.5px;color:var(--g);font-weight:700">📘 ' + esc(tb.title) + (ch.page_start ? ' · pages ' + ch.page_start + '–' + (ch.page_end||ch.page_start) : '') + '</div>' : '';
+    return '<div class="list-item"><div><strong>' + esc(ch.title) + '</strong>' + tbLine + '<div style="margin-top:6px">' + los + '</div></div>' +
       '<button class="btn btn-d btn-sm" onclick="deleteChapter(\'' + ch.id + '\',\'' + cur.id + '\')">🗑</button></div>';
   }).join('') : '<div class="empty">No chapters yet.</div>';
 
@@ -1080,9 +1143,15 @@ async function addChapterManual(){
   var losRaw = document.getElementById('chLOs').value.trim();
   if (!title) return alert('Please enter a chapter title.');
   var los = losRaw.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+  var textbookId = document.getElementById('chTextbook').value || null;
+  var pageStart = document.getElementById('chPageStart').value ? parseInt(document.getElementById('chPageStart').value, 10) : null;
+  var pageEnd = document.getElementById('chPageEnd').value ? parseInt(document.getElementById('chPageEnd').value, 10) : null;
   var client = sbClient();
   var seq = (chaptersCache[selectedCurriculumId] || []).length;
-  var { error } = await client.from('is_curriculum_chapters').insert({ curriculum_id: selectedCurriculumId, title: title, sequence: seq, learning_outcomes: los });
+  var { error } = await client.from('is_curriculum_chapters').insert({
+    curriculum_id: selectedCurriculumId, title: title, sequence: seq, learning_outcomes: los,
+    textbook_id: textbookId, page_start: pageStart, page_end: pageEnd
+  });
   if (error) return toast('Error: ' + error.message, 'err');
   toast('Chapter added.');
   selectCurriculum(selectedCurriculumId);
@@ -1094,11 +1163,49 @@ async function deleteChapter(id, curId){
   selectCurriculum(curId);
 }
 
+var tbPendingFile = null;
+function handleTextbookFile(files){
+  tbPendingFile = files[0] || null;
+  document.getElementById('tbFileStatus').innerHTML = tbPendingFile ? '<div class="file-item">📄 ' + esc(tbPendingFile.name) + '</div>' : '';
+}
+async function uploadTextbook(){
+  var title = document.getElementById('tbTitle').value.trim();
+  if (!title) return alert('Please enter a textbook title.');
+  if (!tbPendingFile) return alert('Please choose a file first.');
+
+  document.getElementById('tbUploadSpin').classList.add('show');
+  document.getElementById('tbUploadTxt').textContent = 'Reading…';
+  try {
+    var pages = await readFileAsPages(tbPendingFile);
+    var client = sbClient();
+    var { error } = await client.from('is_textbooks').insert({
+      curriculum_id: selectedCurriculumId, title: title, pages: pages, page_count: pages.length, created_by: currentUser.id
+    });
+    if (error) throw error;
+    toast('Textbook saved (' + pages.length + ' page(s)).');
+    document.getElementById('tbTitle').value = '';
+    tbPendingFile = null;
+    document.getElementById('tbFileStatus').innerHTML = '';
+    selectCurriculum(selectedCurriculumId);
+  } catch(err) {
+    toast('Could not save textbook: ' + err.message, 'err');
+  } finally {
+    document.getElementById('tbUploadSpin').classList.remove('show');
+    document.getElementById('tbUploadTxt').textContent = '📘 Save Textbook';
+  }
+}
+async function deleteTextbook(id, curId){
+  if (!confirm('Delete this textbook? Any chapters linking to it will keep their page numbers but lose the text link.')) return;
+  await sbClient().from('is_textbooks').delete().eq('id', id);
+  toast('Textbook deleted.');
+  selectCurriculum(curId);
+}
+
 var chFiles = [];
 async function handleChFiles(files){
   for (var i=0;i<files.length;i++){
     var f = files[i];
-    try { var text = await readFileAsText(f); chFiles.push({name:f.name, text:text}); } catch(e){ toast('Could not read ' + f.name, 'err'); }
+    try { var text = await readFileAsFlatText(f); chFiles.push({name:f.name, text:text}); } catch(e){ toast('Could not read ' + f.name, 'err'); }
   }
   renderChFileList();
 }
@@ -1268,7 +1375,7 @@ function moveFmtSection(i, dir){
 async function handleFmtFiles(files){
   for (var i=0;i<files.length;i++){
     var f = files[i];
-    try { var text = await readFileAsText(f); fmtFiles.push({name:f.name, text:text}); } catch(e){ toast('Could not read ' + f.name, 'err'); }
+    try { var text = await readFileAsFlatText(f); fmtFiles.push({name:f.name, text:text}); } catch(e){ toast('Could not read ' + f.name, 'err'); }
   }
   renderFmtFileList();
 }
@@ -1331,6 +1438,8 @@ var genFiles = [];
 function onGenCurriculumChange(){
   var curId = document.getElementById('genCurriculum').value;
   var chSel = document.getElementById('genChapter');
+  genTextbookExcerpt = null;
+  document.getElementById('genTextbookCard').style.display = 'none';
   if (!curId) { chSel.innerHTML = '<option value="">—</option>'; return; }
   var chapters = chaptersCache[curId];
   var render = function(list){
@@ -1342,14 +1451,31 @@ function onGenCurriculumChange(){
     render(res.data || []);
   });
 }
-function onGenChapterChange(){
+var genTextbookExcerpt = null; // {title, pageStart, pageEnd, text}
+
+async function onGenChapterChange(){
   var curId = document.getElementById('genCurriculum').value;
   var chId = document.getElementById('genChapter').value;
+  genTextbookExcerpt = null;
+  document.getElementById('genTextbookCard').style.display = 'none';
   if (!curId || !chId) return;
   var ch = (chaptersCache[curId]||[]).find(function(c){ return c.id === chId; });
   if (!ch) return;
   document.getElementById('genTitle').value = ch.title;
   document.getElementById('genOutcomes').value = (ch.learning_outcomes||[]).join('\n');
+
+  if (ch.textbook_id && ch.page_start) {
+    var client = sbClient();
+    var { data, error } = await client.from('is_textbooks').select('title,pages').eq('id', ch.textbook_id).single();
+    if (!error && data) {
+      var pStart = ch.page_start, pEnd = ch.page_end || ch.page_start;
+      var slice = (data.pages||[]).filter(function(p){ return p.page >= pStart && p.page <= pEnd; });
+      var text = slice.map(function(p){ return '[Page ' + p.page + ']\n' + p.text; }).join('\n\n');
+      genTextbookExcerpt = { title: data.title, pageStart: pStart, pageEnd: pEnd, text: text };
+      document.getElementById('genTextbookCard').style.display = 'block';
+      document.getElementById('genTextbookInfo').textContent = 'Linked to "' + data.title + '", pages ' + pStart + '–' + pEnd + ' (' + slice.length + ' page(s), ' + text.length.toLocaleString() + ' characters).';
+    }
+  }
 }
 function onGenFormatChange(){
   selectedFormatId = document.getElementById('genFormat').value;
@@ -1363,7 +1489,7 @@ function onGenFormatChange(){
 async function handleGenFiles(files){
   for (var i=0;i<files.length;i++){
     var f = files[i];
-    try { var text = await readFileAsText(f); genFiles.push({name:f.name, text:text}); } catch(e){ toast('Could not read ' + f.name, 'err'); }
+    try { var text = await readFileAsFlatText(f); genFiles.push({name:f.name, text:text}); } catch(e){ toast('Could not read ' + f.name, 'err'); }
   }
   renderGenFileList();
 }
@@ -1386,6 +1512,10 @@ async function generateLessonPlan(){
 
   var content = pasted;
   genFiles.forEach(function(f){ content += '\n\n=== FILE: ' + f.name + ' ===\n' + f.text; });
+
+  var tbInclude = genTextbookExcerpt && document.getElementById('genTbInclude').checked;
+  var tbCite = genTextbookExcerpt && document.getElementById('genTbCite').checked;
+  if (tbInclude) content += '\n\n=== TEXTBOOK: ' + genTextbookExcerpt.title + ', pages ' + genTextbookExcerpt.pageStart + '-' + genTextbookExcerpt.pageEnd + ' ===\n' + genTextbookExcerpt.text;
 
   if (!title) return alert('Please enter a lesson/topic title.');
   if (!content.trim()) return alert('Please paste or upload the content/topics to be taught.');
@@ -1412,6 +1542,7 @@ async function generateLessonPlan(){
       (grade ? ('Grade / Age Group: ' + grade + '\n') : '') +
       (outcomes ? ('Learning Outcomes:\n' + outcomes + '\n') : '') +
       '\n--- CONTENT / TOPICS TO TEACH ---\n' + content + '\n--- END ---\n\n' +
+      (tbCite ? ('This lesson is based on "' + genTextbookExcerpt.title + '", pages ' + genTextbookExcerpt.pageStart + '-' + genTextbookExcerpt.pageEnd + '. Explicitly reference these page numbers where relevant in the plan (e.g. in the content/resources section, tell students/teachers to read pages ' + genTextbookExcerpt.pageStart + '-' + genTextbookExcerpt.pageEnd + ' of the textbook).\n\n') : '') +
       'You MUST fill EVERY one of the following sections, in this exact order, using the guidance given for each. Ground everything in the learning outcomes and the content provided above — do not invent unrelated material.\n\n' + sectionsSpec + '\n\n' +
       'Return a JSON array with exactly ' + fmt.sections.length + ' elements, one per section above, each with exactly these keys: "key" (matching the key given above exactly), "text" (the full section content, well-written, ready to use in a classroom, using line breaks between distinct points where useful).';
 
