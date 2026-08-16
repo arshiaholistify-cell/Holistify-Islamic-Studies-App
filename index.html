@@ -639,6 +639,13 @@ textarea{resize:vertical}
       <div id="lessonViewer"></div>
     </div>
 
+    <!-- ===== STUDENT: LEARNING AT HOME ===== -->
+    <div class="page" id="page-my-learning-home">
+      <div class="pg-title">Learning at Home</div>
+      <div class="pg-sub">Take-home tasks from your lessons — what to do, and by when.</div>
+      <div id="myLearningHomeList"><div class="empty">No Learning at Home tasks yet.</div></div>
+    </div>
+
     <!-- ===== STUDENT: MY GOALS ===== -->
     <div class="page" id="page-my-goals">
       <div class="pg-title">My Goals</div>
@@ -974,6 +981,7 @@ var FAC_NAV = [
 var ADMIN_NAV = FAC_NAV.concat([{p:'admin', ic:'🛡️', l:'Admin Panel'}]);
 var STU_NAV = [
   {p:'my-lessons', ic:'📖', l:'My Lessons'},
+  {p:'my-learning-home', ic:'🏠', l:'Learning at Home'},
   {p:'my-goals', ic:'🎯', l:'My Goals'},
   {p:'my-reflections', ic:'📝', l:'My Reflections'},
   {p:'my-rewards', ic:'🕌', l:'Pathway to Jannah'}
@@ -1014,6 +1022,7 @@ function goPage(id){
   if (id === 'assignments') loadAssignmentsPage();
   if (id === 'students') loadStudentsPage();
   if (id === 'reports') loadReportsPage();
+  if (id === 'my-learning-home') loadMyLearningHome();
   if (id === 'my-goals') loadMyGoals();
   if (id === 'my-reflections') loadMyReflections();
   if (id === 'my-rewards') loadMyRewards();
@@ -2549,6 +2558,31 @@ async function loadMyLessons(){
   el.innerHTML = myLessonsCache.map(function(p){
     return '<div class="list-item clickable" onclick="openLessonView(\'' + p.id + '\')"><div><strong>' + esc(p.title) + '</strong><br>' +
       '<span style="font-size:11.5px;color:var(--inkl)">' + esc(p.chapter_name||'') + ' · ' + fmtDate(p.updated_at) + '</span></div><span>›</span></div>';
+  }).join('');
+}
+
+async function loadMyLearningHome(){
+  var client = sbClient();
+  var myClass = currentUser.class_name || '';
+  var q = client.from('is_plan_assignments').select('*, is_lesson_plans(title,generated_sections)').order('due_date', {ascending:true});
+  if (myClass) q = q.eq('class_name', myClass);
+  var { data, error } = await q;
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  var el = document.getElementById('myLearningHomeList');
+  var rows = data || [];
+  if (!rows.length) { el.innerHTML = '<div class="empty">No Learning at Home tasks yet.</div>'; return; }
+  el.innerHTML = rows.map(function(a){
+    var lahSection = a.is_lesson_plans && findLearningAtHomeSection(a.is_lesson_plans.generated_sections);
+    var mySub = (a.submissions || []).find(function(s){ return s.student_id === currentUser.id; });
+    var statusPill = a.status === 'implemented' ? 'pill-final' : a.status === 'missed' ? 'pill-missed' : 'pill-active';
+    return '<div class="card">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
+      '<div><strong>' + esc((a.is_lesson_plans && a.is_lesson_plans.title) || 'Untitled') + '</strong>' +
+      (a.due_date ? '<br><span style="font-size:11.5px;color:var(--inkl)">Due ' + fmtDate(a.due_date) + '</span>' : '') + '</div>' +
+      '<div style="text-align:right"><span class="pill ' + statusPill + '">' + a.status + '</span>' +
+      (mySub ? '<div style="margin-top:5px"><span class="pill ' + (mySub.submitted ? 'pill-final' : 'pill-missed') + '">' + (mySub.submitted ? '✅ Submitted' : '⏳ Not submitted yet') + '</span></div>' : '') + '</div></div>' +
+      (lahSection ? '<div class="sec-block" style="margin-top:10px"><div class="sec-lbl">🏠 ' + esc(lahSection.label) + '</div><p style="margin-top:6px;white-space:pre-wrap;font-size:13px">' + esc(lahSection.text) + '</p></div>' : '<p class="hint" style="margin-top:8px">No Learning at Home content found for this lesson.</p>') +
+      '</div>';
   }).join('');
 }
 
