@@ -1366,7 +1366,7 @@ function newFormatBuilder(){
     {key:'hook', label:'Hook / Introduction', guidance:'An engaging opener connecting to students\' lives.'},
     {key:'main_activity', label:'Main Teaching Activity', guidance:'Core teaching content and activities, step by step.'},
     {key:'islamic_connection', label:'Islamic Values Connection', guidance:'How this links to akhlaq, Quran, or Sunnah.'},
-    {key:'learning_at_home', label:'Learning at Home', guidance:'A take-home activity or reflection so students apply this lesson with their family at home.'},
+    {key:'learning_at_home', label:'Learning at Home', guidance:'Direct step-by-step instructions written to the student, e.g. "Take a blank page and divide it into two columns..." — something they can follow at home with their family, no teacher needed.'},
     {key:'assessment', label:'Assessment / Check for Understanding', guidance:'How you will check learning happened.'},
     {key:'closing_dua', label:'Closing Reflection / Dua', guidance:'A short closing reflection or dua to end the lesson.'}
   ];
@@ -1638,7 +1638,11 @@ async function generateLessonPlan(){
   setGenStep(4);
 
   try {
-    var sectionsSpec = fmt.sections.map(function(s,i){ return (i+1) + '. key="' + s.key + '" — "' + s.label + '": ' + (s.guidance||'no additional guidance'); }).join('\n');
+    var sectionsSpec = fmt.sections.map(function(s,i){
+      var guidance = s.guidance || 'no additional guidance';
+      if (isLearningAtHomeLabel(s.label)) guidance += ' ' + LEARNING_AT_HOME_STYLE;
+      return (i+1) + '. key="' + s.key + '" — "' + s.label + '": ' + guidance;
+    }).join('\n');
     var sys = 'You are an expert Islamic Studies lesson planner working for a specific facilitator, following their own pedagogical philosophy and their own lesson plan format exactly. Never omit a requested section. Return ONLY a valid JSON array, no markdown fences, no explanation text.' +
       (fmt.philosophy ? ('\n\nFacilitator\'s teaching philosophy — apply this throughout every section:\n' + fmt.philosophy) : '');
 
@@ -1699,7 +1703,8 @@ async function regenerateSection(i){
   var s = currentGeneration.sections[i];
   try {
     var sys = 'You are an expert Islamic Studies lesson planner.' + (fmt && fmt.philosophy ? ('\n\nFacilitator\'s teaching philosophy:\n' + fmt.philosophy) : '');
-    var usr = 'Write ONLY the content for one section of a lesson plan titled "' + currentGeneration.title + '".\nSection: "' + s.label + '"\nGuidance: ' + (s.guidance||'') + '\nLearning Outcomes:\n' + currentGeneration.learning_outcomes.join('\n') + '\n\nContent/topics being taught:\n' + currentGeneration.source_content.slice(0,4000) + '\n\nReturn plain text only — no JSON, no markdown headers, just the section content.';
+    var guidance = (s.guidance||'') + (isLearningAtHomeLabel(s.label) ? ' ' + LEARNING_AT_HOME_STYLE : '');
+    var usr = 'Write ONLY the content for one section of a lesson plan titled "' + currentGeneration.title + '".\nSection: "' + s.label + '"\nGuidance: ' + guidance + '\nLearning Outcomes:\n' + currentGeneration.learning_outcomes.join('\n') + '\n\nContent/topics being taught:\n' + currentGeneration.source_content.slice(0,4000) + '\n\nReturn plain text only — no JSON, no markdown headers, just the section content.';
     var text = await callClaude(sys, usr, 1500);
     currentGeneration.sections[i].text = text.trim();
     renderGenPreview();
@@ -1833,6 +1838,12 @@ async function loadAssignmentsPage(){
   renderAssignmentsList();
   renderTargetsList();
 }
+
+function isLearningAtHomeLabel(label){
+  var l = (label || '').toLowerCase();
+  return l.indexOf('learning') >= 0 && l.indexOf('home') >= 0;
+}
+var LEARNING_AT_HOME_STYLE = 'Write this section as direct, numbered step-by-step instructions addressed straight to the student (second person, imperative mood) — e.g. "1. Take a blank page and divide it into two columns. 2. Ask a family member..." — NOT a description of an activity for the teacher to run. The student should be able to follow it at home with no adult explaining it first.';
 
 function findLearningAtHomeSection(sections){
   if (!sections || !sections.length) return null;
